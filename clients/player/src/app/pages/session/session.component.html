@@ -24,8 +24,13 @@
 @if (myRoll(); as roll) {
   <div class="roll-result" (click)="table.lastRoll.set(null)">
     <span class="rr-label">{{ roll.label }}</span>
+    @if (roll.outcome) {
+      <span class="rr-outcome" [class]="'oc-' + roll.outcome">{{ outcomeLabel(roll.outcome) }}</span>
+    }
     <span class="rr-total">{{ roll.total }}</span>
-    <span class="rr-detail">{{ diceOf(roll) }}</span>
+    <span class="rr-detail">@for (d of keptDice(roll); track $index) {
+      <span class="die" [class.die-hope]="d.role === 'hope'" [class.die-fear]="d.role === 'fear'">d{{ d.sides }}:{{ d.value }}</span>
+    }{{ tailOf(roll) }}</span>
   </div>
 }
 

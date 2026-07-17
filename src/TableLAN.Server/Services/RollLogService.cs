@@ -13,10 +13,19 @@ public sealed record RollEntry(
     int Total,
     bool Spent,
     IReadOnlyList<RollAttemptView> Attempts,
-    int KeptIndex);
+    int KeptIndex,
+    string? Outcome);
 
-/// <param name="Dice">Facce e valore di ogni dado, per mostrarli davvero.</param>
-public sealed record RollAttemptView(IReadOnlyList<int[]> Dice, int Modifier, int Total);
+/// <param name="Dice">Ogni dado, per mostrarlo davvero: facce, valore ed eventuale ruolo.</param>
+public sealed record RollAttemptView(IReadOnlyList<DieView> Dice, int Modifier, int Total);
+
+/// <summary>
+/// Un dado per il client: facce, valore, e — se il sistema lo prevede — il ruolo
+/// (<c>"hope"</c>/<c>"fear"</c> in Daggerheart), null per i dadi anonimi. Prima
+/// era un <c>int[]</c> di due elementi; ora porta anche il ruolo, che il render
+/// colora.
+/// </summary>
+public sealed record DieView(int Sides, int Value, string? Role);
 
 /// <summary>
 /// Cronologia dei tiri della sessione.
@@ -57,11 +66,12 @@ public sealed class RollLogService
                 spent,
                 result.Attempts
                     .Select(a => new RollAttemptView(
-                        a.Dice.Select(d => new[] { d.Sides, d.Value }).ToList(),
+                        a.Dice.Select(d => new DieView(d.Sides, d.Value, d.Role)).ToList(),
                         a.Modifier,
                         a.Total))
                     .ToList(),
-                result.KeptIndex);
+                result.KeptIndex,
+                result.Outcome);
 
             _entries.AddLast(entry);
             while (_entries.Count > Capacity)

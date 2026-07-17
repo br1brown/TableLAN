@@ -10,7 +10,7 @@ using TableLAN.Core.Features;
 ///
 /// Grammatica, deliberatamente piatta:
 /// <code>
-///   Formula := Termine (('+' | '-') Termine)* ('>=' N)?
+///   Formula := ('duality:')? Termine (('+' | '-') Termine)* ('>=' N)?
 ///   Termine := NdM | dM | N | @Nome | @{Nome con spazi} | @Nome dM
 /// </code>
 ///
@@ -37,14 +37,8 @@ using TableLAN.Core.Features;
 /// Le graffe non sono un vezzo: esistono statistiche come "Sanità Mentale", e
 /// <c>@Sanità Mentale</c> non avrebbe un terminatore.
 /// </summary>
-public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, int? SuccessThreshold = null)
+public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, IRollResolver Resolver)
 {
-    /// <summary>
-    /// Vero se questa formula conta successi invece di sommare. Cambia cosa
-    /// significa il totale: non «quanto fa», ma «quanti dadi ce l'hanno fatta».
-    /// </summary>
-    public bool CountsSuccesses => SuccessThreshold is not null;
-
     /// <summary>
     /// Nome riservato per i PF massimi. È <see cref="Effect.MaxHpTarget"/> senza
     /// la chiocciola: stesso token degli effetti, così <c>@maxhp</c> vuol dire
@@ -73,7 +67,18 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
             return false;
         }
 
-        var text = input.Trim();
+        // La modalità viaggia nella formula, come la soglia «≥ N» in coda: un
+        // prefisso «duality:» segna il tiro Duality di Daggerheart. Source tiene
+        // la stringa intera com'è stata scritta; il parsing procede sul resto.
+        var source = input.Trim();
+        var text = source;
+        var duality = false;
+        if (text.StartsWith("duality:", StringComparison.OrdinalIgnoreCase))
+        {
+            duality = true;
+            text = text["duality:".Length..].Trim();
+        }
+
         var terms = new List<DiceTerm>();
         var i = 0;
         var sign = 1;
@@ -125,7 +130,59 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
             return false;
         }
 
-        formula = new DiceFormula(terms, text, soglia);
+        IRollResolver resolver;
+        if (duality)
+        {
+            if (!TryBuildDuality(terms, soglia, text, out resolver!, out error))
+                return false;
+        }
+        else if (soglia is not null)
+        {
+            resolver = new SuccessResolver(soglia.Value);
+        }
+        else
+        {
+            resolver = SumResolver.Instance;
+        }
+
+        formula = new DiceFormula(terms, source, resolver);
+        return true;
+    }
+
+    /// <summary>
+    /// Un tiro Duality vuole esattamente due dadi uguali a segno positivo (i
+    /// 2d12 dell'azione), più eventuali modificatori. Niente soglia di successi,
+    /// niente dadi-da-statistica: la coppia dev'essere fissa e nota, perché il
+    /// resolver ne prende il primo come Speranza e il secondo come Paura.
+    /// </summary>
+    private static bool TryBuildDuality(
+        List<DiceTerm> terms, int? soglia, string text,
+        out IRollResolver? resolver, out string? error)
+    {
+        resolver = null;
+        error = null;
+
+        if (soglia is not null)
+        {
+            error = $"Un tiro Duality non conta successi: togli «≥» da «{text}».";
+            return false;
+        }
+        if (terms.Any(t => t.IsStatDice))
+        {
+            error = $"Un tiro Duality vuole due dadi fissi, non dadi-da-statistica, in «{text}».";
+            return false;
+        }
+
+        var diceTerms = terms.Where(t => t.IsDice).ToList();
+        var diceCount = diceTerms.Sum(t => t.Count);
+        var facceUguali = diceTerms.Select(t => t.Sides).Distinct().Count() <= 1;
+        if (diceCount != 2 || !facceUguali || diceTerms.Any(t => t.Sign < 0))
+        {
+            error = $"Un tiro Duality vuole esattamente due dadi uguali, es. «duality: 2d12». In «{text}».";
+            return false;
+        }
+
+        resolver = new DualityResolver();
         return true;
     }
 
@@ -392,10 +449,8 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
 
     private RollAttempt RollOnce(IReadOnlyDictionary<string, int> stats, IRandomSource rng)
     {
-        var dice = new List<DieRoll>();
-        var diceTotal = 0;
+        var rolled = new List<RolledDie>();
         var modifier = 0;
-        var successi = 0;
 
         foreach (var term in Terms)
         {
@@ -408,18 +463,7 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
                     : term.Count;
 
                 for (var n = 0; n < quanti; n++)
-                {
-                    var value = rng.Next(1, term.Sides + 1);
-                    // Il segno vive nel totale, non nella faccia: "1d20-1d4"
-                    // mostra due dadi veri, non un dado negativo.
-                    dice.Add(new DieRoll(term.Sides, value));
-                    diceTotal += term.Sign * value;
-
-                    // Un dado tolto non può togliere un successo: i pool a
-                    // successi non sommano, contano.
-                    if (SuccessThreshold is { } soglia && term.Sign > 0 && value >= soglia)
-                        successi++;
-                }
+                    rolled.Add(new RolledDie(term.Sides, rng.Next(1, term.Sides + 1), term.Sign));
             }
             else if (term.IsStat)
             {
@@ -431,12 +475,11 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
             }
         }
 
-        // Contare i successi è un'altra cosa dal sommare: il totale diventa
-        // "quanti dadi ce l'hanno fatta", e il modificatore non c'entra —
-        // in un pool non esiste "+2 al totale".
-        return CountsSuccesses
-            ? new RollAttempt(dice, 0, successi)
-            : new RollAttempt(dice, modifier, diceTotal + modifier);
+        // Come i dadi diventino un risultato — somma, conteggio di successi, o il
+        // confronto Duality — lo decide il resolver della formula. Qui si tira e
+        // basta; il segno resta sul dado grezzo perché al resolver serve.
+        var resolved = Resolver.Resolve(rolled, modifier);
+        return new RollAttempt(resolved.Dice, resolved.Modifier, resolved.Total, resolved.Outcome);
     }
 
     private static int IndexOfBest(List<RollAttempt> attempts, bool best)
@@ -501,7 +544,7 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, i
             pezzi.Add($"{Segno(Math.Sign(modificatore), pezzi.Count == 0)}{Math.Abs(modificatore)}");
 
         var testo = string.Concat(pezzi);
-        return SuccessThreshold is { } soglia ? $"{testo} ≥{soglia}" : testo;
+        return Resolver.FormulaSuffix is { } suffix ? $"{testo} {suffix}" : testo;
 
         static string Segno(int sign, bool primo) =>
             sign < 0 ? "−" : primo ? "" : "+";

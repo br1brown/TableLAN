@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal, ViewEncapsulation } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { CharacterDto, EffectDto, FeatureDto, InventoryItemDto, PoolDefDto, ProfileDto, RollEntryDto } from '../../models';
+import { CharacterDto, EffectDto, FeatureDto, InventoryItemDto, PoolDefDto, ProfileDto, RollEntryDto, DieView } from '../../models';
 import { TableService } from '../../table.service';
 import { costLabel, grantLabel } from '../../cost-label';
 import { HpPanelComponent } from '../../components/hp-panel/hp-panel';
@@ -510,24 +510,36 @@ export class SessionComponent implements OnInit {
   }
 
   /**
-   * "d20:16 + 6 (scartato d20:10)" — le facce cadute del tentativo che conta,
-   * e quelle buttate.
+   * I dadi del tentativo che conta, col loro ruolo — il template li colora.
+   * Lo scartato (vantaggio/svantaggio) resta in coda, vedi {@link tailOf}.
+   */
+  keptDice(roll: RollEntryDto): DieView[] {
+    return roll.attempts[roll.keptIndex]?.dice ?? [];
+  }
+
+  /**
+   * Ciò che segue i dadi: il modificatore e i tentativi scartati.
    *
    * Lo scartato si mostra come faccia, non come totale: stampava il totale
    * accanto alla faccia di quello tenuto, cioè due unità diverse scritte
    * uguali. Col vantaggio il modificatore è lo stesso per entrambi, quindi è
    * la faccia il numero che i due tentativi si contendono.
    */
-  diceOf(roll: RollEntryDto): string {
+  tailOf(roll: RollEntryDto): string {
     const kept = roll.attempts[roll.keptIndex];
     if (!kept) return '';
     const facce = (a: RollEntryDto['attempts'][number]) =>
-      a.dice.map(d => `d${d[0]}:${d[1]}`).join(' ');
+      a.dice.map(d => `d${d.sides}:${d.value}`).join(' ');
     const mod = kept.modifier ? ` ${kept.modifier > 0 ? '+' : '−'} ${Math.abs(kept.modifier)}` : '';
     const discarded = roll.attempts.length > 1
       ? ` (scartato ${roll.attempts.filter((_, i) => i !== roll.keptIndex).map(facce).join(', ')})`
       : '';
-    return `${facce(kept)}${mod}${discarded}`;
+    return `${mod}${discarded}`;
+  }
+
+  /** La chiave grezza dell'esito (Duality) diventa parola italiana. */
+  outcomeLabel(outcome: string): string {
+    return ({ hope: 'Speranza', fear: 'Paura', crit: 'Critico' } as Record<string, string>)[outcome] ?? outcome;
   }
 
   protected setView(viewId: string): void {

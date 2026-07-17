@@ -30,6 +30,8 @@ public class DiceFormulaParseTests
     [InlineData("@{Sanità Mentale}")]
     [InlineData("1d20+@maxhp")]
     [InlineData("1d8 + 2 - 1d4")]
+    [InlineData("duality: 2d12+@Agilità")]
+    [InlineData("duality: 1d12+1d12")]
     public void Formule_valide_si_analizzano(string input)
     {
         Assert.True(DiceFormula.TryParse(input, out var formula, out var error), $"{input} → {error}");
@@ -47,6 +49,10 @@ public class DiceFormulaParseTests
     [InlineData("@{aperta")]
     [InlineData("100000d6")]
     [InlineData("1d6 * 2")]
+    [InlineData("duality: 1d20")]        // un dado solo, non due
+    [InlineData("duality: 1d12+1d8")]   // facce diverse
+    [InlineData("duality: 2d12 >= 6")]  // la Duality non conta successi
+    [InlineData("duality: @Forzad12")]  // dadi-da-statistica, non una coppia fissa
     [InlineData("")]
     [InlineData(null)]
     public void Formule_invalide_falliscono_spiegando_perche(string? input)
@@ -133,6 +139,43 @@ public class DiceFormulaEvaluateTests
     {
         // Chi tira decide cosa farne: il motore non addolcisce i numeri.
         Assert.Equal(-4, Roll("1d4-5", new ScriptedRandom(1)).Total);
+    }
+
+    [Fact]
+    public void Duality_speranza_quando_il_primo_dado_e_piu_alto()
+    {
+        var result = Roll("duality: 2d12+@Agilità", new ScriptedRandom(7, 3),
+            stats: new() { ["Agilità"] = 2 });
+
+        Assert.Equal(12, result.Total);              // 7 + 3 + 2
+        Assert.Equal("hope", result.Outcome);
+        // Il primo dado è la Speranza, il secondo la Paura, e i ruoli si vedono.
+        Assert.Equal([new DieRoll(12, 7, "hope"), new DieRoll(12, 3, "fear")], result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Duality_paura_quando_il_secondo_dado_e_piu_alto()
+    {
+        var result = Roll("duality: 2d12", new ScriptedRandom(3, 7));
+
+        Assert.Equal(10, result.Total);
+        Assert.Equal("fear", result.Outcome);
+    }
+
+    [Fact]
+    public void Duality_critico_quando_i_due_dadi_sono_uguali()
+    {
+        var result = Roll("duality: 2d12+1", new ScriptedRandom(9, 9));
+
+        Assert.Equal(19, result.Total);              // 9 + 9 + 1
+        Assert.Equal("crit", result.Outcome);
+    }
+
+    [Fact]
+    public void Un_tiro_normale_non_ha_esito()
+    {
+        // La generalizzazione è additiva: senza modalità, nessun esito.
+        Assert.Null(Roll("2d6+3", new ScriptedRandom(4, 5)).Outcome);
     }
 }
 

@@ -68,6 +68,20 @@
 
   .rr-label { font-size: .8rem; color: var(--text-muted); }
 
+  // Esito della Duality (Daggerheart) sul proprio tiro: il segnale più
+  // importante da leggere in un colpo d'occhio. Assente su un tiro normale.
+  .rr-outcome {
+    padding: .05rem .5rem;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .oc-hope { background: color-mix(in srgb, var(--gold) 22%, transparent); color: var(--gold); }
+  .oc-fear { background: color-mix(in srgb, var(--accent) 30%, transparent); color: #e8869f; }
+  .oc-crit { background: var(--gold); color: #201700; }
+
   .rr-total {
     font-family: var(--font-display);
     font-size: 3rem;
@@ -81,6 +95,9 @@
     font-family: ui-monospace, Consolas, monospace;
     font-size: .72rem;
     color: var(--text-dim);
+
+    .die-hope { color: var(--gold); }
+    .die-fear { color: #e8869f; }
   }
 }
 
@@ -795,26 +812,44 @@
         display: flex;
         justify-content: space-between;
         margin-bottom: .2rem;
-        
+
         .tr-who { font-weight: 600; font-size: .85rem; color: var(--gold); }
+        .tr-meta { display: flex; align-items: center; gap: .35rem; }
         .tr-what { font-size: .75rem; color: var(--text-muted); }
+
+        // Esito della Duality (Daggerheart): Speranza in oro, Paura nel vino,
+        // critico marcato pieno. Assente su un tiro normale.
+        .tr-outcome {
+          padding: .02rem .35rem;
+          border-radius: 999px;
+          font-size: .58rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .05em;
+        }
+        .oc-hope { background: color-mix(in srgb, var(--gold) 22%, transparent); color: var(--gold); }
+        .oc-fear { background: color-mix(in srgb, var(--accent) 30%, transparent); color: #e8869f; }
+        .oc-crit { background: var(--gold); color: #201700; }
       }
-      
+
       .tr-body {
         display: flex;
         align-items: baseline;
         gap: .5rem;
-        
+
         .tr-total {
           font-family: var(--font-display);
           font-size: 1.5rem;
           color: var(--gold);
         }
-        
+
         .tr-detail {
           font-family: ui-monospace, Consolas, monospace;
           font-size: .7rem;
           color: var(--text-dim);
+
+          .die-hope { color: var(--gold); }
+          .die-fear { color: #e8869f; }
         }
       }
     }

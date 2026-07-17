@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CharacterDto, RollEntryDto } from '../../models';
+import { CharacterDto, RollEntryDto, DieView } from '../../models';
 import { TableService } from '../../table.service';
 
 @Component({
@@ -29,11 +29,19 @@ import { TableService } from '../../table.service';
           <div class="tavolo-roll">
             <div class="tr-head">
               <span class="tr-who">{{ roll.characterName }}</span>
-              <span class="tr-what">{{ roll.label }}</span>
+              <span class="tr-meta">
+                @if (roll.outcome) {
+                  <span class="tr-outcome" [class]="'oc-' + roll.outcome">{{ outcomeLabel(roll.outcome) }}</span>
+                }
+                <span class="tr-what">{{ roll.label }}</span>
+              </span>
             </div>
             <div class="tr-body">
               <span class="tr-total">{{ roll.total }}</span>
-              <span class="tr-detail">{{ roll.formula }} &rarr; {{ diceOf(roll) }}</span>
+              <span class="tr-detail">{{ roll.formula }} &rarr;
+                @for (d of keptDice(roll); track $index) {
+                  <span class="die" [class.die-hope]="d.role === 'hope'" [class.die-fear]="d.role === 'fear'">d{{ d.sides }}:{{ d.value }}</span>
+                }{{ tailOf(roll) }}</span>
             </div>
           </div>
         } @empty {
@@ -47,14 +55,24 @@ export class TavoloTabComponent {
   otherCharacters = input.required<CharacterDto[]>();
   rollLog = input.required<RollEntryDto[]>();
 
-  diceOf(roll: RollEntryDto): string {
+  /** I dadi del tentativo che conta, col loro ruolo — il template li colora. */
+  keptDice(roll: RollEntryDto): DieView[] {
+    return roll.attempts[roll.keptIndex]?.dice ?? [];
+  }
+
+  /** Ciò che segue i dadi: modificatore e tentativi scartati. */
+  tailOf(roll: RollEntryDto): string {
     const kept = roll.attempts[roll.keptIndex];
     if (!kept) return '';
-    const dice = kept.dice.map(d => `d${d[0]}:${d[1]}`).join(' ');
     const mod = kept.modifier ? ` ${kept.modifier > 0 ? '+' : '−'} ${Math.abs(kept.modifier)}` : '';
     const discarded = roll.attempts.length > 1
       ? ` (scartato ${roll.attempts.filter((_, i) => i !== roll.keptIndex).map(a => a.total).join(', ')})`
       : '';
-    return `${dice}${mod}${discarded}`;
+    return `${mod}${discarded}`;
+  }
+
+  /** La chiave grezza dell'esito diventa parola italiana. */
+  outcomeLabel(outcome: string): string {
+    return ({ hope: 'Speranza', fear: 'Paura', crit: 'Critico' } as Record<string, string>)[outcome] ?? outcome;
   }
 }

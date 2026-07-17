@@ -48,6 +48,11 @@
   <div class="pf-toolbar">
     <label>Parti da un preset<select id="pf-preset"></select></label>
     <button class="secondary" id="load-preset">Carica</button>
+    <!-- Import da file: uno edita il JSON dove vuole (Blocco note) e lo lascia
+         qui. Entra nel form, non si applica: si guarda e poi si salva, e la
+         validazione vera è quella del Salva, come per un profilo scritto a mano. -->
+    <button class="secondary" id="import-file">Importa da file…</button>
+    <input id="import-input" type="file" accept=".json,application/json" hidden>
     <label class="grow">Nome del sistema<input id="pf-name" placeholder="es. La mia campagna"></label>
   </div>
 
@@ -223,6 +228,40 @@ document.getElementById('load-preset').onclick = () => {
   ensureArrays();
   renderForm();
   document.getElementById('profile-msg').textContent = 'Preset caricato — ricorda di salvare.';
+};
+
+// Import da file. Il file non si applica: si carica nel form come un preset, e
+// il Master lo salva dopo averlo guardato. Qui si valida solo la *forma* — è un
+// oggetto, e le sue liste sono liste — perché la validazione semantica (almeno
+// una risorsa di turno o un pool, formule sensate) è quella del server al Salva,
+// che parla italiano. Un errore qui è "questo file non è un profilo", non "non è
+// un profilo legale": quella distinzione la fa il passo dopo.
+const importInput = document.getElementById('import-input');
+document.getElementById('import-file').onclick = () => importInput.click();
+importInput.onchange = async () => {
+  const file = importInput.files?.[0];
+  // Azzerare il valore riabilita il ri-import dello stesso file: senza, riscegliere
+  // «profilo.json» dopo una correzione non riscatterebbe l'evento.
+  importInput.value = '';
+  if (!file) return;
+
+  const msg = document.getElementById('profile-msg');
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error('il file non contiene un profilo.');
+    for (const k of ['turnResources', 'pools', 'cycles', 'stats'])
+      if (k in parsed && !Array.isArray(parsed[k]))
+        throw new Error(`"${k}" dev'essere una lista.`);
+
+    form = parsed;
+    ensureArrays();
+    renderForm();
+    // file.name entra come testo (textContent), non HTML: nessun escape necessario.
+    msg.textContent = `Importato «${file.name}» — controlla e poi salva.`;
+  } catch (e) {
+    msg.textContent = 'File non valido: ' + (e.message || 'JSON illeggibile.');
+  }
 };
 
 function normalize() {

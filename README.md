@@ -2,6 +2,18 @@
 
 **La scheda del personaggio sul telefono, mentre giocate al tavolo.**
 
+<p align="center">
+  <img src="docs/screenshot/01-scheda-telefono.png" alt="La scheda di un personaggio sul telefono, in combattimento" width="260">
+  &nbsp;&nbsp;
+  <img src="docs/screenshot/02-console-master.png" alt="La console del Master sul computer" width="600">
+</p>
+
+<p align="center">
+  <img src="docs/screenshot/03-tiro-daggerheart.png" alt="Tiri Duality di Daggerheart con gli esiti Speranza, Paura e Critico" width="600">
+</p>
+
+<p align="center"><em>La scheda sul telefono del giocatore e la console del Master. Sotto: TableLAN non è solo D&amp;D — i tiri di Daggerheart, con l'esito Speranza / Paura / Critico già leggibile.</em></p>
+
 Il Master apre un programma sul suo computer. I giocatori inquadrano un quadratino
 bianco e nero con la fotocamera del telefono, e si ritrovano la scheda del loro
 personaggio sullo schermo: quanti punti ferita ha, cosa può fare in questo turno,

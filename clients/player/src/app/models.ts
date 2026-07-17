@@ -178,6 +178,14 @@ export interface FeatureDto {
   rollLabel: string | null;
 }
 
+/** Un dado dentro un tentativo: facce, valore, ed eventuale ruolo. */
+export interface DieView {
+  sides: number;
+  value: number;
+  /** "hope"/"fear" nella Duality di Daggerheart; null per i dadi anonimi. */
+  role: string | null;
+}
+
 /** Esito di un tiro, dal server. Conserva anche i tentativi scartati. */
 export interface RollEntryDto {
   id: number;
@@ -187,9 +195,11 @@ export interface RollEntryDto {
   formula: string;
   total: number;
   spent: boolean;
-  /** Per tentativo: dadi come [facce, valore], modificatore, totale. */
-  attempts: { dice: number[][]; modifier: number; total: number }[];
+  /** Per tentativo: i dadi (con ruolo), il modificatore, il totale. */
+  attempts: { dice: DieView[]; modifier: number; total: number }[];
   keptIndex: number;
+  /** Esito categorico del tiro tenuto ("hope"/"fear"/"crit"), o null. */
+  outcome: string | null;
 }
 
 export interface IntentRejection {

@@ -90,6 +90,15 @@
   .roll-row.fresh { animation: flash 1.2s ease; }
   @keyframes flash { from { background: color-mix(in srgb, var(--gold) 22%, transparent); } to { background: transparent; } }
   .roll-free { color: var(--text-dim); font-size: .68rem; }
+  /* Esito e ruoli dei dadi (Duality di Daggerheart): Speranza in oro, Paura nel
+     vino dell'accento, il critico marcato pieno. Su un tiro normale non c'è
+     esito e questi non compaiono. */
+  .roll-outcome { display: inline-block; margin-left: .35rem; padding: .02rem .35rem; border-radius: var(--pill); font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; vertical-align: middle; }
+  .oc-hope { background: color-mix(in srgb, var(--gold) 22%, transparent); color: var(--gold); }
+  .oc-fear { background: color-mix(in srgb, var(--accent) 30%, transparent); color: #e8869f; }
+  .oc-crit { background: var(--gold); color: #201700; }
+  .roll-detail .die-hope { color: var(--gold); }
+  .roll-detail .die-fear { color: #e8869f; }
 
   .hp-editor { display: flex; gap: .3rem; align-items: center; margin-bottom: 1rem; }
   .hp-editor input { flex: 0 0 4rem; text-align: center; padding: .3rem; }
@@ -326,6 +335,17 @@ function renderInitiative() {
 
 // ---- Tiri ----
 const seen = new Set();
+
+// Etichette italiane per gli esiti categorici (Duality di Daggerheart). La
+// chiave grezza arriva dal server; qui diventa parola.
+const OUTCOME_LABEL = { hope: 'Speranza', fear: 'Paura', crit: 'Critico' };
+
+// Un dado con l'eventuale ruolo: la classe lo colora, il valore resta un numero.
+function dieHtml(d) {
+  const cls = d.role ? ` die-${d.role}` : '';
+  return `<span class="die${cls}">d${d.sides}:${d.value}</span>`;
+}
+
 function renderRoll(roll, fresh) {
   if (seen.has(roll.id)) return;
   seen.add(roll.id);
@@ -334,10 +354,13 @@ function renderRoll(roll, fresh) {
   if (seen.size === 1) list.innerHTML = '';
 
   const kept = roll.attempts[roll.keptIndex];
-  const dice = kept.dice.map(([sides, value]) => `d${sides}:${value}`).join(' ');
+  const dice = kept.dice.map(dieHtml).join(' ');
   const mod = kept.modifier ? ` ${kept.modifier > 0 ? '+' : '−'} ${Math.abs(kept.modifier)}` : '';
   const discarded = roll.attempts.length > 1
     ? ` · scartato ${roll.attempts.filter((_, i) => i !== roll.keptIndex).map(a => a.total).join(', ')}`
+    : '';
+  const outcome = roll.outcome
+    ? ` <span class="roll-outcome oc-${roll.outcome}">${OUTCOME_LABEL[roll.outcome] || esc(roll.outcome)}</span>`
     : '';
 
   const row = document.createElement('div');
@@ -345,7 +368,7 @@ function renderRoll(roll, fresh) {
   row.innerHTML = `
     <span class="roll-who">${esc(roll.characterName)}</span>
     <span class="roll-total">${roll.total}</span>
-    <span class="roll-what">${esc(roll.label)}${roll.spent ? '' : ' <span class="roll-free">(free)</span>'}</span>
+    <span class="roll-what">${esc(roll.label)}${outcome}${roll.spent ? '' : ' <span class="roll-free">(free)</span>'}</span>
     <span class="roll-detail">${esc(roll.formula)} → ${dice}${mod}${discarded}</span>`;
   list.prepend(row);
 

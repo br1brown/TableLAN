@@ -1,0 +1,6 @@
+# Gli script di shell restano a LF anche se il repo si clona su Windows.
+# Con CRLF la riga dello shebang diventa "/usr/bin/env bash\r": Linux cerca un
+# interprete con un ritorno a capo nel nome, non lo trova, e lo script muore
+# con "bad interpreter" — in CI o sulla macchina di chi ha scaricato lo zip,
+# cioè lontano da chi ha fatto il commit.
+*.sh text eol=lf

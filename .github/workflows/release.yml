@@ -1,0 +1,149 @@
+name: Release
+
+# Si rilascia sui tag, non sui push.
+#
+# È il cancello: main può stare rotto quanto vuole, al Master non arriva
+# niente finché non si tagga di proposito. Il nome del tag è la versione e
+# lo scegli tu — "v0.3", "2026.07.17", quello che ti pare: qui non c'è nessuna
+# regola da ricordare, qualsiasi tag rilascia.
+#
+# workflow_dispatch serve a ricostruire un tag vecchio senza pushare niente:
+# lo lanci dal tab Actions scegliendo il tag dal menù dei ref. Se lo lanci su
+# un branch, compila e basta — la release la fanno solo i tag (vedi l'if del
+# job release).
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+
+# Serve a creare la release e a potare le vecchie.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            asset: TableLAN-win-x64
+          - rid: linux-x64
+            asset: TableLAN-linux-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Node serve solo qui: il client Angular viene compilato dal target
+      # BuildAngularClient del csproj e finisce incorporato nell'assembly.
+      # Chi scarica lo zip non ha bisogno né di Node né del runtime .NET.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: clients/player/package-lock.json
+
+      # Tag + commit: il tag è la versione che dici tu, il SHA è cosa c'è
+      # dentro davvero. Il secondo non serve a te, serve quando qualcosa non
+      # torna e vuoi sapere esattamente da dove viene quel binario.
+      - name: Determina la versione
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "TABLELAN_VERSION=${{ github.ref_name }}+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          else
+            echo "TABLELAN_VERSION=dev+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      # Il csproj inchioda win-x64, ma -r da riga di comando è una proprietà
+      # globale e vince sul PropertyGroup: da qui esce anche il binario Linux.
+      - name: Publish ${{ matrix.rid }}
+        run: >
+          dotnet publish src/TableLAN.Server
+          -c Release
+          -r ${{ matrix.rid }}
+          -o out
+          -p:InformationalVersion="$TABLELAN_VERSION"
+
+      - name: Prepara il pacchetto
+        run: |
+          mkdir -p pkg
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            # Su Windows l'icona è già incisa nell'exe (ApplicationIcon) e la
+            # finestra se la estrae da sé: nello zip non serve altro.
+            cp out/TableLAN.exe pkg/
+          else
+            cp out/TableLAN pkg/
+            cp scripts/run.sh scripts/installa-desktop.sh pkg/
+            # Il PNG serve al menù applicazioni, non alla finestra: quello che
+            # vede GNOME è questo file, non la risorsa dentro l'eseguibile.
+            cp assets/icona/tablelan.png pkg/
+            chmod +x pkg/TableLAN pkg/run.sh pkg/installa-desktop.sh
+          fi
+          cd pkg && zip -r "../${{ matrix.asset }}.zip" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.zip
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    # Su un branch si compila soltanto: gli artifact del job build restano
+    # scaricabili dalla pagina della run, e nessuno se ne accorge in giro.
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Una release sul suo tag, immutabile, e basta: niente "latest" da
+      # cancellare e ricreare. Il badge "Latest" e l'URL stabile
+      # /releases/latest/download/... li gestisce GitHub da solo, e puntano
+      # all'ultima release NON prerelease — motivo per cui qui --prerelease
+      # non c'è: con quello, quell'URL farebbe 404.
+      - name: Pubblica la release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/*.zip \
+            --title "${{ github.ref_name }}" \
+            --notes "Build da \`${GITHUB_SHA::7}\`.
+
+          **Windows** — scarica \`TableLAN-win-x64.zip\`, estrai, doppio clic su \`TableLAN.exe\`.
+          **Linux** — scarica \`TableLAN-linux-x64.zip\`, estrai, lancia \`./run.sh\`.
+          Per averlo nel menù applicazioni con la sua icona: \`./installa-desktop.sh\` (una volta sola, niente sudo).
+
+          Non serve installare niente: runtime .NET, client dei giocatori e
+          console del Master sono dentro l'eseguibile. Il database \`tablelan.db\`
+          nasce accanto all'eseguibile al primo avvio: spostalo o rinominalo per
+          cambiare campagna."
+
+      # La pagina Releases si tiene corta da sola, così non tocca farlo a mano
+      # fra cinque anni. Cinque e non due: con due, due tag di fila andati male
+      # sfrattano l'ultima versione buona proprio mentre ti serve.
+      #
+      # Si cancellano le release, MAI i tag (niente --cleanup-tag). La release
+      # è la pagina con gli zip attaccati, ed è quella che fa volume; il tag è
+      # un puntatore a un commit e non pesa niente. Così la storia resta
+      # intera: da qualsiasi tag vecchio si rifà quel pacchetto esatto con un
+      # workflow_dispatch, senza trascinarsi dietro anni di zip.
+      - name: Poda le release oltre le ultime 5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[5:] | .[].tagName' \
+          | while read -r vecchia; do
+              [ -n "$vecchia" ] || continue
+              echo "Poto la release $vecchia (il tag resta)"
+              gh release delete "$vecchia" --yes
+            done

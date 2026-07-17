@@ -1,0 +1,131 @@
+/*
+ * Design token del client giocatore. Tutta la palette e le forme vivono qui:
+ * cambiare tema significa toccare queste variabili, non cercare gli hex nel
+ * resto del CSS. Nessuna libreria, tutto locale.
+ *
+ * Tema "flavor fantasy, ossa funzionali": superfici scure calde (pergamena/
+ * cuoio), serif Cinzel per i titoli, icone RPG — ma contrasti e leggibilità
+ * intatti, come chiede il master.
+ */
+
+/* Font bundlati in locale (nessun CDN a runtime). */
+@font-face {
+  font-family: "Cinzel";
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/cinzel-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/cinzel-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "RPGAwesome";
+  font-display: block;
+  src: url("/assets/rpgawesome.woff") format("woff");
+}
+
+:root {
+  color-scheme: dark;
+
+  /* --- Superfici (dark warm / cuoio) --- */
+  --bg: #14110c;
+  --surface: #211a12;
+  --surface-2: #1a140d;
+  --inset: #2a2016;
+  --border: #3a2f21;
+
+  /* --- Testo (inchiostro su pergamena) --- */
+  --text: #ece3d3;
+  --text-soft: #cabda4;
+  --text-muted: #9c8f77;
+  --text-dim: #6d6250;
+
+  /* --- Accenti --- */
+  --accent: #8b1e3f;   /* rosso vino del Master */
+  --gold: #c9a53a;
+  --info: #7fb3d5;
+  --hp: #a63d40;
+  --hp-text: #dc7a52;
+  --ok: #8ab370;
+
+  /* Font display fantasy per i titoli. */
+  --font-display: "Cinzel", Georgia, serif;
+
+  /* --- Chip di stato --- */
+  --chip-ok-bg: #24422a;    --chip-ok-text: #9fd8a4;
+  --chip-spent-bg: #3a2226; --chip-spent-text: #b98a8a;
+
+  /* --- Forma --- */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --pill: 999px;
+
+  /* --- Interazione --- */
+  --tap: .12s ease;
+  --focus-ring: 2px solid var(--gold);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* --- Densità (asimmetria GM/Giocatore, HCI) ---
+     Il client giocatore è "Relaxed": spazi ampi, bersagli grandi per il
+     pollice (Legge di Fitts). Il valore di --control-h è l'altezza minima
+     di ogni controllo toccabile. La console del Master usa una densità "HUD"
+     più compatta (definita nel suo <style>). */
+  --space-1: .4rem;
+  --space-2: .65rem;
+  --space-3: 1rem;
+  --pad-card: 1rem;
+  --control-h: 2.75rem;   /* ~44px: soglia di tocco comoda */
+  --control-h-lg: 3.25rem;
+  --font-base: 1rem;
+  --font-sm: .85rem;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  /* Texture cuoio/pergamena bundlata, sovrapposta al colore caldo: dà il
+     feel "carta e fantasy" senza rovinare i contrasti. */
+  background-color: var(--bg);
+  background-image: url("/assets/texture-leather.png");
+  color: var(--text);
+  line-height: 1.4;
+}
+
+/* Titoli in serif fantasy; il corpo resta sans per leggibilità (ossa funzionali). */
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: .02em; }
+
+/* Icone RPG: ereditano colore e si allineano al testo. */
+.ra { vertical-align: -.05em; }
+
+/* Comportamento condiviso dei controlli: feedback coerente su tutti i
+   bottoni dell'app, senza ripeterlo in ogni regola. */
+button {
+  font-family: inherit;
+  transition: filter var(--tap), background var(--tap), transform var(--tap);
+}
+button:not(:disabled):hover { filter: brightness(1.12); }
+button:not(:disabled):active { transform: translateY(1px); }
+button:disabled { cursor: not-allowed; }
+
+input,
+select {
+  font-family: inherit;
+  transition: border-color var(--tap);
+}
+input:focus,
+select:focus { border-color: var(--accent); }
+
+/* Contorno di focus visibile solo da tastiera: accessibilità senza
+   sporcare il click col mouse/tocco. */
+:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+:focus:not(:focus-visible) { outline: none; }

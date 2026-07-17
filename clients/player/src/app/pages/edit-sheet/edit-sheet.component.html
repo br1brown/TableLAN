@@ -1,0 +1,162 @@
+<header class="topbar">
+  <h1><i class="ra ra-quill-ink"></i> Modifica Scheda</h1>
+  <button class="secondary" (click)="goBack()">Fatto</button>
+</header>
+
+@if (character(); as c) {
+<main class="sheet" style="padding: 1rem; max-width: 800px; margin: 0 auto;">
+  
+  <section class="edit-section">
+    <h2>Nome</h2>
+    <div style="display: flex; gap: .5rem;">
+      <input [(ngModel)]="draftName" style="flex: 1; padding: .5rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);" placeholder="Nome Personaggio">
+      <button (click)="saveName()">Salva</button>
+    </div>
+  </section>
+
+  <!-- I PF: authoring, non gioco. Il danno e la cura stanno sulla scheda,
+       qui si sale di livello o si corregge un numero digitato male. Prima il
+       massimo si fissava alla creazione e non si poteva più cambiare. -->
+  <section class="edit-section" style="margin-top: 2rem;">
+    <h2>Punti Ferita</h2>
+    <div class="hp-edit">
+      <label>
+        <span>Attuali</span>
+        <input type="number" min="0" [ngModel]="draftHp().current"
+               (ngModelChange)="setDraftHp('current', $event)" name="pfAttuali">
+      </label>
+      <span class="hp-sep">/</span>
+      <label>
+        <span>Massimi</span>
+        <input type="number" min="1" [ngModel]="draftHp().max"
+               (ngModelChange)="setDraftHp('max', $event)" name="pfMassimi">
+      </label>
+      <button (click)="saveHp()">Salva</button>
+    </div>
+    @if (c.hp.max !== effectiveMaxHp(c)) {
+      <p class="muted" style="margin-top: .4rem;">
+        Con gli effetti attivi il massimo è <strong>{{ effectiveMaxHp(c) }}</strong>.
+      </p>
+    }
+  </section>
+
+  <section class="edit-section" style="margin-top: 2rem;">
+    <h2>Statistiche</h2>
+    <div class="stats" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .4rem; margin-bottom: 1rem;">
+      @for (s of c.customStats | keyvalue; track s.key) {
+        <div class="stat-cell" [style.border-left]="(s.key === 'CA' || s.key === 'Iniziativa') ? 'none' : '2px solid var(--gold)'" style="display: flex; align-items: center; gap: .35rem; background: var(--surface-2); border-radius: var(--radius-sm); padding: .3rem .45rem;">
+          <span class="s-label" [title]="s.key" style="flex: 1; font-size: .78rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.key }}</span>
+          <input class="s-val" type="text" [value]="s.value" (change)="updateStat($any(s.key), $any($event.target).value)" style="width: 3.4rem; text-align: center; font-variant-numeric: tabular-nums; background: transparent; border: none; color: var(--text);">
+          <!-- Il modificatore: è il numero che si somma al dado, e cambia da
+               solo se cambi il punteggio qui accanto. -->
+          @if (modOf(c, $any(s.key)); as mod) {
+            <span class="s-mod" [title]="'Modificatore di ' + s.key">{{ mod }}</span>
+          }
+          <button class="ghost" style="padding: 0 .2rem; color: var(--text-dim);" (click)="removeStat($any(s.key))">✕</button>
+        </div>
+      }
+    </div>
+    <div style="display: flex; gap: .5rem; margin-top: .5rem; max-width: 15rem;">
+      <input #newStatInput placeholder="Nuova stat..." style="flex: 1; padding: .4rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+      <button class="secondary" (click)="addStat(newStatInput)">Aggiungi</button>
+    </div>
+  </section>
+
+  <!-- Le riserve: slot per livello, punti per i pool a punti. Zero = non ce
+       l'ha, e la riga sparisce dalla scheda del giocatore. -->
+  @if (reserves().length) {
+    <section class="edit-section" style="margin-top: 2rem;">
+      <h2>Riserve</h2>
+      @for (pool of reserves(); track pool.id) {
+        <div class="pool-row">
+          <span class="pool-label">{{ pool.label }}</span>
+          <div class="pool-tiers">
+            @for (tier of pool.tiers; track tier.level) {
+              <label class="tier">
+                @if (pool.kind === 'Leveled') { <span>L{{ tier.level }}</span> }
+                <input type="number" min="0" [value]="tier.max"
+                       (change)="setPoolMax(pool.id, tier.level, $any($event.target).value)">
+              </label>
+            }
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="edit-section" style="margin-top: 2rem;">
+    <h2>Tratti e Capacità</h2>
+    
+    <!-- Il rifiuto del server in chiaro: una formula sbagliata la ferma qui,
+         non al tavolo. -->
+    @if (saveError(); as errore) {
+      <p class="save-error">{{ errore }}</p>
+    }
+
+    <!-- Prima qui si poteva solo rinominare ed eliminare: per cambiare un costo
+         o un tiro bisognava cancellare la capacità e rifarla. La rotta però
+         accetta tutto ciò che è suo, in un colpo solo. -->
+    <div class="feature-list" style="margin-bottom: 1rem;">
+      @for (feature of c.features; track feature.id) {
+        @if (profile(); as p) {
+          <app-feature-editor
+            [feature]="feature"
+            [profile]="p"
+            [effectTargets]="effectTargets(c)"
+            [description]="descriptions().get(feature.descriptionId) ?? ''"
+            (needsDescription)="loadDescription($event)"
+            (save)="saveFeature(feature.id, $event)"
+            (remove)="deleteFeature(feature.id)">
+          </app-feature-editor>
+        }
+      } @empty {
+        <p class="muted">Nessuna capacità.</p>
+      }
+    </div>
+
+    @if (!showAddForm()) {
+      <button class="secondary" (click)="showAddForm.set(true)" style="width: 100%;">+ Aggiungi Capacità</button>
+    } @else {
+      <div class="add-form" style="background: var(--surface-2); padding: 1rem; border-radius: var(--radius-sm);">
+        <label style="display: block; margin-bottom: .5rem; color: var(--text-muted); font-size: .9rem;">Nome
+          <input [(ngModel)]="featureDraft.shortName" placeholder="es. Furtivo" style="width: 100%; padding: .4rem; margin-top: .2rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+        </label>
+        <label style="display: block; margin-bottom: .5rem; color: var(--text-muted); font-size: .9rem;">Costo (Azione/Risorsa)
+          <select [(ngModel)]="featureDraft.costKind" style="width: 100%; padding: .4rem; margin-top: .2rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+            <option value="None">Nessuno (Passiva)</option>
+            @for (tr of profile()?.turnResources ?? []; track tr.id) {
+              <option [value]="tr.id">{{ tr.label }}</option>
+            }
+          </select>
+        </label>
+        <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
+          <label style="flex: 1; color: var(--text-muted); font-size: .9rem;">Usi Massimi
+            <input type="number" min="1" [(ngModel)]="featureDraft.maxUses" placeholder="Infiniti" style="width: 100%; padding: .4rem; margin-top: .2rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+          </label>
+          @if (featureDraft.maxUses) {
+            <label style="flex: 1; color: var(--text-muted); font-size: .9rem;">Si Ricarica...
+              <select [(ngModel)]="featureDraft.recharge" style="width: 100%; padding: .4rem; margin-top: .2rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                @for (cy of profile()?.cycles ?? []; track cy.id) {
+                  <option [value]="cy.id">{{ cy.label }}</option>
+                }
+              </select>
+            </label>
+          }
+        </div>
+        <label style="display: block; margin-bottom: 1rem; color: var(--text-muted); font-size: .9rem;">Descrizione (Opzionale)
+          <textarea [(ngModel)]="featureDraft.description" placeholder="Spiegazione estesa..." rows="2" style="width: 100%; padding: .4rem; margin-top: .2rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);"></textarea>
+        </label>
+        <div style="display: flex; gap: .5rem;">
+          <button (click)="submitFeatureDraft()" style="flex: 1;">Salva Capacità</button>
+          <button class="secondary" (click)="showAddForm.set(false)" style="flex: 1;">Annulla</button>
+        </div>
+      </div>
+    }
+  </section>
+
+</main>
+} @else {
+<main class="sheet" style="padding: 1rem;">
+  <p class="muted">Caricamento...</p>
+</main>
+}

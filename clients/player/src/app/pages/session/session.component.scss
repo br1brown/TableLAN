@@ -1,0 +1,887 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem;
+  background: var(--surface);
+  border-bottom: 2px solid var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  h1 { margin: 0; font-size: 1.2rem; color: var(--gold); .ra { margin-right: .4rem; } }
+
+  .conn {
+    font-size: .75rem;
+    color: var(--hp-text);
+    &.ok { color: var(--ok); }
+  }
+}
+
+/* Il rifiuto è rosso; la conseguenza è oro. Un intento riuscito che ha fatto
+   cadere qualcos'altro non deve leggersi come un errore. */
+.toast.notice {
+  background: var(--gold);
+  color: #14161c;
+  font-weight: 600;
+}
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: .6rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: .9rem;
+  z-index: 20;
+  max-width: 90vw;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
+}
+
+/* L'esito del tiro. Grande e al centro: quando tiri, per un attimo è
+   l'unica cosa che conta. Un tap lo congeda. */
+.roll-result {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .1rem;
+  min-width: 11rem;
+  padding: 1rem 1.5rem;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .65);
+  cursor: pointer;
+
+  .rr-label { font-size: .8rem; color: var(--text-muted); }
+
+  .rr-total {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    line-height: 1.1;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Il conto in chiaro: a un tavolo i numeri si controllano a vicenda. */
+  .rr-detail {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: .72rem;
+    color: var(--text-dim);
+  }
+}
+
+.picker {
+  padding: 1.25rem;
+
+  .pick {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    margin-bottom: .75rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+
+    span { color: var(--hp-text); font-size: .85rem; }
+  }
+}
+
+.muted { color: var(--text-muted); font-size: .85rem; }
+
+.sheet { padding: var(--space-3); padding-bottom: var(--space-3); }
+
+.status {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gold) 8%, transparent);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-card);
+  margin-bottom: var(--space-3);
+  /* Container query: la scheda si auto-organizza in base allo spazio del
+     contenitore, non del viewport (design sistemico, pannelli affiancabili). */
+  container-type: inline-size;
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    /* "In combattimento" è lungo: su schermo stretto la riga va a capo invece
+       di strozzare il nome del personaggio, che è l'unica cosa qui che il
+       giocatore deve leggere per sapere di essere sulla scheda giusta. */
+    flex-wrap: wrap;
+    h2 { margin: 0 0 .5rem; font-size: 1.05rem; }
+    .name-actions { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
+  }
+
+  .combattimento-toggle {
+    background: var(--border);
+    border: 0;
+    color: var(--text-muted);
+    border-radius: var(--pill);
+    /* Bersaglio comodo al pollice: è l'interruttore più importante della
+       scheda, non se ne va in un angolo da 0.78rem (Fitts). */
+    padding: .45rem .8rem;
+    font-size: .85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    .ra { margin-right: .3rem; }
+    &.on { background: var(--gold); color: #14161c; font-weight: 600; }
+  }
+
+  .menu-toggle {
+    width: var(--control-h);
+    height: var(--control-h);
+    background: var(--border);
+    border: 0;
+    color: var(--text-muted);
+    border-radius: var(--pill);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    &.on { background: var(--gold); color: #14161c; }
+  }
+}
+
+/* Azioni di cornice: turno, riposi, cambio scheda. Piene larghezza e
+   alte quanto il pollice chiede, ma solo quando le hai chieste. */
+.menu-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  padding: var(--space-1);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+
+  button {
+    min-height: var(--control-h);
+    background: none;
+    border: 0;
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: .5rem .7rem;
+    font-size: var(--font-base);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: var(--inset); }
+    .ra { margin-right: .5rem; color: var(--gold); }
+  }
+}
+
+/* Un numero, due direzioni. Copre qualunque quantità, mentre i sei bottoni
+   di prima coprivano solo ±1 e ±5 e stavano lì sempre. */
+.hp-panel {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+
+  input {
+    flex: 0 0 5rem;
+    min-width: 0;
+    min-height: var(--control-h);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: .5rem;
+    font-size: var(--font-base);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  button {
+    flex: 1;
+    min-height: var(--control-h);
+    border: 0;
+    border-radius: var(--radius);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled { opacity: .4; cursor: default; }
+    .ra { margin-right: .35rem; }
+  }
+
+  .hp-damage { background: var(--accent); color: #fff; }
+  .hp-heal { background: var(--ok); color: #14161c; }
+}
+
+.vuoto { text-align: center; padding: 1.5rem 1rem; }
+
+.ghost {
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: .8rem;
+  cursor: pointer;
+  text-decoration: underline;
+
+  &:disabled { opacity: .3; text-decoration: none; }
+}
+
+.add-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: .6rem;
+  flex-wrap: wrap;
+
+  button {
+    flex: 1;
+    min-width: 4rem;
+    min-height: var(--control-h);
+    background: var(--border);
+    border: 0;
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: .45rem;
+    font-size: .85rem;
+    cursor: pointer;
+  }
+}
+
+.inventory {
+  padding: .75rem;
+
+  .inv-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem 0;
+    border-top: 1px solid var(--border);
+
+    &:first-child { border-top: 0; }
+
+    .inv-order {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+      button { padding: 0 .2rem; font-size: .7rem; }
+    }
+
+    .inv-name { flex: 1; overflow-wrap: anywhere; }
+
+    .inv-qty {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+
+      button {
+        width: 2.1rem;
+        height: 2.1rem;
+        background: var(--border);
+        border: 0;
+        color: var(--text);
+        border-radius: var(--radius-sm);
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      span { min-width: 1.5rem; text-align: center; }
+    }
+  }
+
+  .inv-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .75rem;
+
+    input {
+      min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: .5rem;
+    }
+    input:first-of-type { flex: 1 1 100%; }
+    .qty-input { flex: 0 0 4rem; }
+    button {
+      flex: 1;
+      min-height: var(--control-h);
+      background: var(--accent);
+      border: 0;
+      color: #fff;
+      border-radius: var(--radius-sm);
+      padding: .5rem .8rem;
+      cursor: pointer;
+    }
+  }
+}
+
+.add {
+  margin-top: 1rem;
+
+  .add-toggle { width: 100%; padding: .7rem; }
+
+  .add-form {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: .25rem;
+      font-size: .8rem;
+      color: var(--text-muted);
+    }
+
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: .5rem;
+      font-size: .95rem;
+    }
+
+    .add-actions button { flex: 1; min-height: var(--control-h); }
+    .add-actions button:first-child { background: var(--accent); color: #fff; }
+  }
+}
+
+/* La barra è il bersaglio: un tap solo, alto quanto il pollice chiede. */
+.hp-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--control-h);
+  padding: 0;
+  background: var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  
+  &.readonly {
+    cursor: default;
+  }
+
+  .hp-fill {
+    display: block;
+    height: 100%;
+    background: var(--hp);
+    transition: width .3s ease;
+  }
+
+  .hp-text {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text);
+    font-size: var(--font-base);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Tre registri, non tre righe di pillole uguali.
+ *
+ * Prima l'economia del turno era il testo più piccolo della scheda (.75rem) e
+ * "Carisma: 10" era più grande (.8rem): la gerarchia diceva il contrario di
+ * quello che conta al tavolo. Peggio, slot e statistiche condividevano lo
+ * stesso selettore — e una statistica portava la classe `.slot`, il nome di
+ * un'altra cosa.
+ *
+ * Ora: 1) il turno è la voce forte (cosa posso fare adesso), 2) le riserve
+ * sono la voce media (si spendono, ma durano oltre il turno), 3) le
+ * statistiche sono consultazione e stanno zitte. La differenza di peso è
+ * anche ciò che dà ritmo alla testa della scheda: prima era un muro piatto.
+ */
+.chips {
+  display: flex;
+  gap: .45rem;
+  margin-top: .8rem;
+  flex-wrap: wrap;
+}
+
+/* Su cosa stai concentrando: l'unica cosa che sopravvive al turno, quindi
+   l'unica che vale una riga sua in testa alla scheda. */
+.occupied {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .6rem;
+  padding: .35rem .6rem;
+  border-left: 2px solid var(--gold);
+  background: var(--inset);
+  border-radius: var(--radius-sm);
+  font-size: .8rem;
+  color: var(--text-muted);
+
+  .occ-label { text-transform: uppercase; letter-spacing: .04em; font-size: .7rem; }
+  strong { color: var(--text-soft); }
+
+  .occ-drop {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0 .25rem;
+    font-size: .9rem;
+  }
+}
+
+/* Vantaggio/svantaggio: spento è voce bassa come una chip spesa — è armato di
+   rado. Acceso deve gridare, perché sta per cambiare il tiro successivo. */
+.adv {
+  display: flex;
+  gap: .45rem;
+  margin-top: .45rem;
+  flex-wrap: wrap;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .8rem;
+    padding: .35rem .7rem;
+    border: 0;
+    border-radius: var(--pill);
+    background: var(--border);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background var(--tap), color var(--tap);
+
+    &.on { background: var(--gold); color: #14161c; font-weight: 700; }
+  }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+  font-weight: 600;
+  padding: .4rem .75rem;
+  border-radius: var(--pill);
+  background: var(--chip-ok-bg);
+  color: var(--chip-ok-text);
+  transition: background var(--tap), color var(--tap), opacity var(--tap);
+
+  /* I numeri non devono ballare mentre le risorse si consumano. */
+  strong { font-variant-numeric: tabular-nums; }
+
+  &.spent {
+    background: var(--chip-spent-bg);
+    color: var(--chip-spent-text);
+    text-decoration: line-through;
+    opacity: .7;
+  }
+}
+
+/* Voce media: una riserva si spende, quindi resta una scatola leggibile. */
+.slots {
+  display: flex;
+  gap: .5rem;
+  margin-top: .6rem;
+  flex-wrap: wrap;
+
+  .slot {
+    font-size: .8rem;
+    color: var(--info);
+    background: var(--inset);
+    padding: .25rem .55rem;
+    border-radius: var(--radius);
+    strong { font-variant-numeric: tabular-nums; }
+  }
+}
+
+/* Voce bassa: le statistiche non sono stato, sono identità. Si guardano una
+   volta e non cambiano durante il turno: niente scatola, niente contrasto —
+   ci sono quando le cerchi, non ti chiamano mentre giochi. */
+.custom-stats {
+  display: flex;
+  gap: .15rem .9rem;
+  margin-top: .7rem;
+  flex-wrap: wrap;
+
+  .stat {
+    font-size: .75rem;
+    color: var(--text-dim);
+    padding: .1rem 0;
+
+    strong {
+      color: var(--text-soft);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: 1rem;
+
+  button {
+    flex: 1;
+    min-height: var(--control-h);
+    padding: .55rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    font-size: .9rem;
+    cursor: pointer;
+
+    &.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+  }
+}
+
+.group {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-lg);
+  padding: .5rem .75rem;
+  margin-bottom: .9rem;
+
+  h3 {
+    margin: .4rem .25rem .5rem;
+    font-size: .85rem;
+    letter-spacing: .04em;
+    color: var(--gold);
+    .ra { margin-right: .4rem; opacity: .95; }
+  }
+
+  // Il titolo è il comando. Bersaglio alto abbastanza per un pollice: si tocca
+  // al tavolo, di fretta, con una mano sola.
+  .group-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 2.75rem;
+    gap: .1rem;
+    background: none;
+    border: 0;
+    padding: .25rem;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .group-count {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: .25rem 0;
+
+  &.disabled .feature-name { color: var(--text-dim); }
+
+  .feature-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .5rem;
+    background: none;
+    border: 0;
+    color: inherit;
+    padding: .5rem .25rem;
+    font-size: .95rem;
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  .feature-name {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* Da dove arriva: presente ma sottovoce — serve a orientarsi, non a decidere. */
+  .feature-from {
+    font-size: .7rem;
+    color: var(--text-dim);
+    &:empty { display: none; }
+  }
+
+  .feature-meta {
+    display: flex;
+    gap: .5rem;
+    flex-shrink: 0;
+
+    .cost { color: var(--info); font-size: .75rem; }
+    /* Il credito accanto al costo: verde contro il blu di ciò che spendi,
+       perché "Azione → +2 Attacco" si legga in un colpo d'occhio. */
+    .grant { color: var(--ok, #4caf50); font-size: .75rem; font-weight: 600; }
+    .uses { color: var(--gold); font-size: .75rem; }
+  }
+
+  .use {
+    background: var(--accent);
+    border: 0;
+    color: #fff;
+    border-radius: var(--radius);
+    padding: .4rem .8rem;
+    font-size: .85rem;
+    cursor: pointer;
+
+    &:disabled { background: var(--border); color: var(--text-dim); }
+  }
+
+  /* Il numero è il bottone. Monospaziato perché è una formula, e in oro
+     perché è la cosa che si tocca. */
+  .roll {
+    min-height: var(--control-h);
+    min-width: 4.5rem;
+    background: var(--inset);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    border-radius: var(--radius);
+    padding: .4rem .7rem;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    .ra { margin-right: .3rem; }
+    &:disabled { border-color: var(--border); color: var(--text-dim); cursor: default; }
+  }
+
+  .description {
+    grid-column: 1 / -1;
+    margin: .25rem .25rem .6rem;
+    font-size: .85rem;
+    line-height: 1.5;
+    color: var(--text-soft);
+  }
+
+  /* Il motivo del blocco: informa, non allarma. Sta sotto la riga a cui
+     appartiene, non in un toast che appare a cose fatte. */
+  .blocked {
+    grid-column: 1 / -1;
+    margin: 0 .25rem .45rem;
+    font-size: .75rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  /* Non è un blocco: è un prezzo. Oro come le altre cose che stai per
+     spendere, non grigio come le cose che non puoi fare. */
+  .replaces {
+    grid-column: 1 / -1;
+    margin: 0 .25rem .45rem;
+    font-size: .75rem;
+    line-height: 1.4;
+    color: var(--gold);
+  }
+
+  &.off { opacity: .55; }
+
+  .toggle {
+    background: var(--border);
+    border: 0;
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    padding: .4rem .7rem;
+    font-size: .8rem;
+    cursor: pointer;
+
+    &.on { background: var(--chip-ok-bg); color: var(--chip-ok-text); }
+  }
+
+  .effects {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin: 0 .25rem .4rem;
+
+    .eff {
+      font-size: .72rem;
+      padding: .15rem .5rem;
+      border-radius: var(--pill);
+      background: var(--inset);
+      color: var(--gold);
+    }
+  }
+}
+/* ---- Tavolo ---- */
+.tavolo {
+  .tavolo-players {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  .tavolo-player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem 0;
+    border-top: 1px solid var(--border);
+    &:first-child { border-top: 0; }
+
+    .tp-name {
+      font-weight: 600;
+      font-size: .95rem;
+      flex: 1;
+      color: var(--text);
+    }
+    
+    .tp-bar {
+      flex: 0 0 40%;
+      height: 1.2rem;
+      background: var(--inset);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+
+      .tp-fill {
+        display: block;
+        height: 100%;
+        background: var(--hp);
+        transition: width .3s ease;
+      }
+    }
+  }
+
+  .tavolo-rolls {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+
+    .tavolo-roll {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .6rem;
+      
+      .tr-head {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: .2rem;
+        
+        .tr-who { font-weight: 600; font-size: .85rem; color: var(--gold); }
+        .tr-what { font-size: .75rem; color: var(--text-muted); }
+      }
+      
+      .tr-body {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        
+        .tr-total {
+          font-family: var(--font-display);
+          font-size: 1.5rem;
+          color: var(--gold);
+        }
+        
+        .tr-detail {
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: .7rem;
+          color: var(--text-dim);
+        }
+      }
+    }
+  }
+}
+
+.active-turn-banner {
+  background: var(--gold);
+  color: #14161c;
+  padding: 0.5rem;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  box-shadow: 0 0 10px rgba(230,175,46,0.6);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+/* Chiude la tab Azioni. Pieno ma non urlato: è la fine del turno, non
+   un'azione che compete con quelle del personaggio. */
+.end-turn-btn {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: .75rem;
+  background: var(--gold);
+  color: #14161c;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-weight: bold;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, .5);
+
+  .ra { margin-right: .4rem; }
+}
+
+/* "Tocca a te": il Master ha spostato il segnalino. È un avviso, non un
+   comando — non ricarica niente, non chiude niente. Compare e basta, e sparisce
+   quando tocca a un altro. */
+.my-turn {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin: .8rem 0 0;
+  padding: .5rem .8rem;
+  background: var(--gold);
+  color: #14161c;
+  font-weight: 700;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, .4);
+}
+
+/* Il modificatore. È il numero che il giocatore somma davvero al dado, quindi
+   è lui a farsi vedere: il punteggio resta accanto, per chi lo cerca. */
+.custom-stats .stat-mod {
+  margin-left: .3rem;
+  padding: .05rem .3rem;
+  background: var(--inset);
+  color: var(--gold);
+  border-radius: var(--radius-sm);
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

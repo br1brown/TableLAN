@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TableLAN — Schede</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="assets/rpg-icons.css">
+<link rel="stylesheet" href="assets/console.css">
+<style>
+  main { max-width: 900px; margin: 0 auto; }
+  .sheets { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .6rem; }
+  .sheet-card {
+    display: block;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--gold);
+    padding: .7rem .8rem;
+    color: inherit;
+    text-decoration: none;
+    transition: transform var(--tap), filter var(--tap);
+  }
+  .sheet-card:hover { filter: brightness(1.15); transform: translateY(-2px); }
+  /* Le bestie si distinguono a colpo d'occhio: sono del Master, non del tavolo. */
+  .sheet-card.npc { border-left-color: var(--hp-text); }
+  .sheet-name { font-weight: 600; margin-bottom: .2rem; }
+  .sheet-meta { font-size: .78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .import-box {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: .9rem 1rem;
+    margin-top: 1.5rem;
+  }
+  .import-box h3 { margin: 0 0 .3rem; }
+  .import-row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-top: .7rem; }
+  .import-esito { margin-top: .7rem; font-size: .85rem; }
+  .import-esito.ok { color: var(--gold); }
+  .import-esito.ko { color: var(--hp-text); }
+  .import-avvisi { margin: .4rem 0 0 1rem; padding: 0; font-size: .8rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<header></header>
+<main>
+  <h2 class="section-title"><i class="ra ra-pawn"></i> Schede</h2>
+  <p class="page-intro">Apri una scheda per modificarla. Un mostro è un personaggio: stessa scheda.</p>
+
+  <h3>Al tavolo</h3>
+  <div id="pgs" class="sheets"></div>
+
+  <h3 style="margin-top: 1.5rem;">Bestiario</h3>
+  <div id="npcs" class="sheets"></div>
+
+  <!-- Il file non esce di qui: il PDF sta sul tuo disco, il server gira sul tuo
+       PC, e questa pagina risponde solo su 127.0.0.1. È solo un modo di passare
+       dei byte a un programma. -->
+  <section class="import-box">
+    <h3><i class="ra ra-scroll-unfurled"></i> Importa da D&amp;D Beyond</h3>
+    <p class="page-intro" style="margin: 0;">
+      Su D&amp;D Beyond: scheda del personaggio → <em>Manage</em> → <em>Print</em> → <em>Export to PDF</em>.
+      Da qui entrano caratteristiche, PF, armi con attacco e danni, incantesimi coi loro slot e i tratti.
+      Serve il PDF <strong>della scheda compilata</strong>, non il foglio vuoto da stampare.
+      Il file viene letto e basta: non resta da nessuna parte.
+    </p>
+    <div class="import-row">
+      <input type="file" id="pdf" accept="application/pdf,.pdf">
+      <button id="importa">Importa</button>
+    </div>
+    <div id="esito" class="import-esito"></div>
+  </section>
+</main>
+
+<script type="module">
+/*
+  Questa pagina era un editor completo scritto a mano: 347 righe di JS che
+  facevano — peggio, e in un'altra lingua — quello che ora fa l'editor Angular.
+  Erano due editor per lo stesso lavoro, ed è così che la pagina di modifica è
+  finita a mostrare "Costo: BonusAction" mentre la scheda diceva "Azione Bonus".
+  Ora è un elenco: sceglie la scheda e la apre dove si modifica davvero.
+*/
+import { mountHeader, getState, esc } from './assets/console.js';
+
+mountHeader('schede.html');
+
+const card = (c, npc) => `
+  <a class="sheet-card ${npc ? 'npc' : ''}" href="/#/edit/${encodeURIComponent(c.id)}">
+    <div class="sheet-name">${esc(c.name)}</div>
+    <div class="sheet-meta">
+      PF ${c.hp.current}/${c.hp.max} · CA ${c.customStats?.CA ?? '—'} ·
+      ${c.features.length} capacità
+    </div>
+  </a>`;
+
+async function refresh() {
+  const state = await getState();
+  if (!state) return;
+
+  document.getElementById('pgs').innerHTML =
+    state.characters.map(c => card(c, false)).join('')
+    || '<p class="empty">Nessuna scheda. Aggiungine una da Sessione.</p>';
+
+  // Il bestiario vive solo qui: /api/admin/* risponde su 127.0.0.1, e i
+  // giocatori non lo vedono.
+  const monsters = await fetch('/api/admin/monsters').then(r => r.ok ? r.json() : []).catch(() => []);
+  document.getElementById('npcs').innerHTML =
+    monsters.map(m => card(m, true)).join('')
+    || '<p class="empty">Nessun mostro. Aggiungine uno dal Bestiario.</p>';
+}
+
+refresh();
+setInterval(refresh, 3000);
+
+// --- Import da D&D Beyond -------------------------------------------------
+const esito = document.getElementById('esito');
+const bottone = document.getElementById('importa');
+const scelta = document.getElementById('pdf');
+
+bottone.addEventListener('click', async () => {
+  const file = scelta.files?.[0];
+  if (!file) { mostraErrore('Scegli prima il PDF della scheda.'); return; }
+
+  // Un PDF di quattro pagine si legge in un attimo, ma il bottone si spegne
+  // lo stesso: due click uguali farebbero due schede identiche.
+  bottone.disabled = true;
+  esito.className = 'import-esito';
+  esito.textContent = `Leggo ${file.name}…`;
+
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    const r = await fetch('/api/admin/import/ddb', { method: 'POST', body });
+    const dati = await r.json();
+
+    if (!r.ok) { mostraErrore(dati.error ?? 'Import non riuscito.'); return; }
+
+    esito.className = 'import-esito ok';
+    esito.innerHTML = `
+      <strong>${esc(dati.nome)}</strong> importato:
+      ${dati.feature} capacità (${dati.incantesimi} incantesimi) da ${dati.fonti} fonti.
+      ${dati.avvisi?.length ? `<ul class="import-avvisi">${dati.avvisi.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}`;
+    scelta.value = '';
+    refresh();
+  } catch (e) {
+    mostraErrore(e.message);
+  } finally {
+    bottone.disabled = false;
+  }
+});
+
+function mostraErrore(testo) {
+  esito.className = 'import-esito ko';
+  esito.textContent = testo;
+}
+</script>
+</body>
+</html>

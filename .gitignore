@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Database locale
+*.db
+*.db-shm
+*.db-wal
+
+# Node / Angular
+node_modules/
+clients/player/dist/
+.angular/
+
+# Il client compilato viene pubblicato in wwwroot da scripts/build-client.sh;
+# solo la dashboard del Master è sorgente versionato.
+src/TableLAN.Server/wwwroot/*
+!src/TableLAN.Server/wwwroot/admin/

@@ -1,0 +1,116 @@
+<article class="fe" [class.open]="open()">
+
+  <!-- Chiusa, la riga è solo un nome e cosa costa: la lista resta leggibile
+       anche con quaranta capacità. Si apre quella che vuoi cambiare. -->
+  <header class="fe-head" (click)="toggleOpen()">
+    <strong class="fe-name">{{ feature().shortName }}</strong>
+    @if (costsLabel()) {
+      <span class="fe-costs">{{ costsLabel() }}</span>
+    }
+    <span class="fe-chevron">{{ open() ? '▴' : '⋯' }}</span>
+  </header>
+
+  @if (open()) {
+    <div class="fe-body">
+
+      <label class="fe-field">
+        <span>Nome</span>
+        <input [ngModel]="draft().shortName" (ngModelChange)="set('shortName', $event)" name="nome">
+      </label>
+
+      <!-- I costi: quanti ne vuoi. Una magia ne ha due — l'Azione e lo slot —
+           ed è il motivo per cui è una lista e non un campo solo. -->
+      <div class="fe-field">
+        <span>Costo</span>
+        @for (c of draft().costs; track $index) {
+          <div class="fe-row">
+            <select [ngModel]="c.kind" (ngModelChange)="setCost($index, { kind: $event })" [name]="'costo' + $index">
+              @for (o of costOptions(); track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+              }
+            </select>
+            <input class="fe-num" type="number" min="0" max="9"
+                   [ngModel]="c.amount" (ngModelChange)="setCost($index, { amount: +$event })" [name]="'quanti' + $index">
+            <button class="fe-del" type="button" (click)="removeCost($index)" aria-label="Togli il costo">✕</button>
+          </div>
+        } @empty {
+          <p class="fe-hint">Nessun costo: è passiva, o si fa senza consumare il turno.</p>
+        }
+        <button class="fe-add" type="button" (click)="addCost()">+ costo</button>
+      </div>
+
+      <!-- Usi e ricarica viaggiano insieme: cariche che non tornano mai non
+           sono cariche, e una ricarica senza usi non ricarica niente. -->
+      <div class="fe-row">
+        <label class="fe-field fe-grow">
+          <span>Usi</span>
+          <input class="fe-num" type="number" min="0" placeholder="—"
+                 [ngModel]="draft().maxUses" (ngModelChange)="setUses($event)" name="usi">
+        </label>
+        @if (draft().maxUses !== null) {
+          <label class="fe-field fe-grow">
+            <span>Si ricarica</span>
+            <select [ngModel]="draft().recharge" (ngModelChange)="set('recharge', $event)" name="ricarica">
+              @for (cy of cycles(); track cy.id) {
+                <option [value]="cy.id">{{ cy.label }}</option>
+              }
+            </select>
+          </label>
+        }
+      </div>
+
+      <label class="fe-field">
+        <span>Tiro</span>
+        <input placeholder="es. 1d20+@Forza, 3d6"
+               [ngModel]="draft().roll" (ngModelChange)="set('roll', $event)" name="tiro">
+        <small class="fe-hint">
+          <code>&#64;Nome</code> prende dalla scheda. Le caratteristiche danno il
+          <strong>modificatore</strong>: Forza 18 vale +4.
+        </small>
+      </label>
+
+      <!-- Gli effetti modificano davvero i valori della scheda finché è attiva. -->
+      <div class="fe-field">
+        <span>Effetti</span>
+        @for (e of draft().effects; track $index) {
+          <div class="fe-row">
+            <select [ngModel]="e.target" (ngModelChange)="setEffect($index, { target: $event })" [name]="'bersaglio' + $index">
+              @for (t of effectTargets(); track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+            <select [ngModel]="e.op" (ngModelChange)="setEffect($index, { op: $event })" [name]="'op' + $index">
+              <option value="Add">somma (+)</option>
+              <option value="Set">imposta (=)</option>
+            </select>
+            <input class="fe-num" type="number"
+                   [ngModel]="e.value" (ngModelChange)="setEffect($index, { value: +$event })" [name]="'valore' + $index">
+            <button class="fe-del" type="button" (click)="removeEffect($index)" aria-label="Togli l'effetto">✕</button>
+          </div>
+        } @empty {
+          <p class="fe-hint">Nessun effetto: non cambia i valori della scheda.</p>
+        }
+        <button class="fe-add" type="button" (click)="addEffect()">+ effetto</button>
+      </div>
+
+      @if (draft().effects.length) {
+        <label class="fe-check">
+          <input type="checkbox" [ngModel]="draft().toggleable"
+                 (ngModelChange)="set('toggleable', $event)" name="indossabile">
+          <span>Si indossa e si toglie — gli effetti valgono solo da acceso</span>
+        </label>
+      }
+
+      <label class="fe-field">
+        <span>Descrizione</span>
+        <textarea rows="4" [ngModel]="draft().description"
+                  (ngModelChange)="set('description', $event)" name="testo"></textarea>
+      </label>
+
+      <div class="fe-actions">
+        <button class="fe-save" type="button" (click)="submit()">Salva</button>
+        <button class="fe-remove" type="button" (click)="remove.emit()">Elimina</button>
+      </div>
+    </div>
+  }
+</article>

@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TableLAN — Sistema</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="assets/rpg-icons.css">
+<link rel="stylesheet" href="assets/console.css">
+<style>
+  main { max-width: 60rem; }
+  .pf-toolbar { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin: .5rem 0 1rem; }
+  .pf-toolbar label { flex: 0 0 auto; }
+  .pf-toolbar label.grow { flex: 1; min-width: 12rem; }
+  .pf-list { display: flex; flex-direction: column; gap: .4rem; }
+  .pf-row { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; background: var(--surface-2); padding: .45rem .55rem; border-radius: var(--radius-sm); }
+  .pf-row input, .pf-row select { width: auto; }
+  .pf-row .grow { flex: 1; min-width: 8rem; }
+  .pf-row .pf-num { flex: 0 0 4rem; }
+  /* La regola del modificatore in atto, su un valore vero: "18 → +4" si legge
+     meglio di "floor((v-10)/2)". */
+  .pf-row .pf-hint {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: .75rem;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .pf-row label { display: flex; align-items: center; gap: .3rem; margin: 0; font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+  .pf-add { margin-top: .5rem; }
+  #profile-json { min-height: 260px; margin-top: .75rem; resize: vertical; background: var(--surface-2); color: var(--text-muted); padding: .75rem; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; line-height: 1.45; tab-size: 2; }
+  .warn { border-left: 3px solid var(--accent); padding-left: .75rem; }
+</style>
+</head>
+<body>
+<header></header>
+<main>
+  <h2 class="section-title"><i class="ra ra-book"></i>Profilo di sistema</h2>
+  <p class="page-intro">
+    Turno, riserve e cicli di riposo. Il default è D&amp;D 5e; da qui si adatta
+    ad altri sistemi, senza programmare.
+  </p>
+  <p class="page-intro warn">
+    Cambia le regole per <em>tutti</em> i giocatori insieme. Una feature il cui
+    costo il nuovo sistema non prevede resta sulla scheda ma non si attiva,
+    finché non la rimappi da <a href="schede.html">Schede</a>.
+  </p>
+
+  <div class="pf-toolbar">
+    <label>Parti da un preset<select id="pf-preset"></select></label>
+    <button class="secondary" id="load-preset">Carica</button>
+    <label class="grow">Nome del sistema<input id="pf-name" placeholder="es. La mia campagna"></label>
+  </div>
+
+  <h3>Statistiche</h3>
+  <p class="muted" style="max-width:60ch;margin:0 0 .5rem">
+    I valori che ogni scheda nuova porta già. Nelle formule si citano col nome
+    (<code>@Forza</code>); il tiro è facoltativo.
+  </p>
+  <div id="pf-stats" class="pf-list"></div>
+  <button class="secondary pf-add" onclick="pfAdd('stats')">+ Statistica</button>
+
+  <h3>Riserve</h3>
+  <p class="muted" style="max-width:60ch;margin:0 0 .5rem">
+    Ciò che si <em>spende</em>: slot, ki, mana. Se un nome si tira <em>e</em> si
+    spende (la Forza di Volontà in Vampiri), dichiaralo in entrambe le liste.
+  </p>
+  <div id="pf-pools" class="pf-list"></div>
+  <button class="secondary pf-add" onclick="pfAdd('pools')">+ Riserva</button>
+
+  <h3>Economia del turno</h3>
+  <div id="pf-turn" class="pf-list"></div>
+  <button class="secondary pf-add" onclick="pfAdd('turnResources')">+ Risorsa di turno</button>
+
+  <h3>Cicli di riposo</h3>
+  <div id="pf-cycles" class="pf-list"></div>
+  <button class="secondary pf-add" onclick="pfAdd('cycles')">+ Ciclo</button>
+
+  <div class="form-actions">
+    <button id="save-profile">Salva profilo</button>
+    <button class="secondary" id="toggle-json">JSON avanzato</button>
+    <span id="profile-msg" class="muted"></span>
+  </div>
+  <textarea id="profile-json" spellcheck="false" readonly style="display:none"></textarea>
+</main>
+
+<script type="module">
+import { mountHeader, mountConfirm, confirmAction, api, getState, esc, isOrphanCost } from './assets/console.js';
+
+mountHeader('sistema.html');
+mountConfirm();
+
+let form = { id: '', name: '', turnResources: [], pools: [], cycles: [], stats: [] };
+let presets = [];
+let state = null;
+
+const slug = s => (String(s || '').trim().replace(/\s+/g, '').replace(/[^A-Za-z0-9]/g, '')) || ('x' + Math.random().toString(36).slice(2, 6));
+const ensureArrays = () => {
+  form.turnResources = form.turnResources || [];
+  form.pools = form.pools || [];
+  form.cycles = form.cycles || [];
+  form.stats = form.stats || [];
+};
+
+// Codice interno stabile, assegnato alla creazione: è la chiave con cui le
+// feature agganciano la meccanica. Resta fisso anche rinominando l'etichetta,
+// così un rename non orfana nulla. Il Master non lo vede mai.
+const newId = prefix => prefix + '_' + Math.random().toString(36).slice(2, 7);
+
+window.pfSet = (section, i, field, val) => { form[section][i][field] = val; syncJson(); };
+
+/*
+  Il modificatore di una statistica: mod = floor((punteggio − base) / passo).
+
+  Non è cablato su D&D. D&D e Pathfinder 2e usano base 10 e passo 2 (Forza 18 →
+  +4), ma un sistema può volerne un altro, o non volerlo affatto: la CA non ha
+  modificatore, e l'Umanità di Vampiri nemmeno — quelle valgono intere. Il
+  default per una statistica nuova è "nessun modificatore", perché è il caso
+  generale: è D&D a essere strano.
+*/
+window.pfMod = (i, acceso) => {
+  form.stats[i].modifier = acceso ? { base: 10, div: 2 } : null;
+  renderForm();
+};
+window.pfModSet = (i, campo, val) => {
+  form.stats[i].modifier = form.stats[i].modifier || { base: 10, div: 2 };
+  form.stats[i].modifier[campo] = val;
+  renderForm();
+};
+
+/** Mostra la regola in atto su un valore vero: si legge meglio di una formula. */
+function esempioMod(s) {
+  const base = Number(s.modifier?.base ?? 10);
+  const div = Number(s.modifier?.div) || 1;
+  const v = Number(s.default) || 0;
+  const m = Math.floor((v - base) / div);
+  return `${v} → ${m >= 0 ? '+' : '−'}${Math.abs(m)}`;
+}
+window.pfDel = (section, i) => { form[section].splice(i, 1); renderForm(); };
+window.pfAdd = section => {
+  if (section === 'turnResources') form.turnResources.push({ id: newId('t'), label: '', perTurn: 1 });
+  else if (section === 'pools') form.pools.push({ id: newId('p'), label: '', kind: 'Points', rechargeCycle: '' });
+  else if (section === 'stats') form.stats.push({ id: newId('s'), label: '', default: 10, roll: '' });
+  else form.cycles.push({ id: newId('c'), label: '', rank: form.cycles.length + 1, perTurn: false });
+  renderForm();
+};
+
+const cycleOptions = sel => '<option value="">—</option>' + form.cycles
+  .map(c => `<option value="${esc(c.id)}" ${c.id === sel ? 'selected' : ''}>${esc(c.label || c.id)}</option>`).join('');
+
+function renderForm() {
+  document.getElementById('pf-name').value = form.name || '';
+
+  document.getElementById('pf-turn').innerHTML = form.turnResources.map((t, i) => `
+    <div class="pf-row">
+      <input class="grow" value="${esc(t.label)}" placeholder="Nome (es. Azione)" onchange="pfSet('turnResources',${i},'label',this.value)">
+      <label>per turno <input class="pf-num" type="number" min="1" value="${t.perTurn || 1}" onchange="pfSet('turnResources',${i},'perTurn',Number(this.value))"></label>
+      <button class="ghost" title="Rimuovi" onclick="pfDel('turnResources',${i})">✕</button>
+    </div>`).join('') || '<p class="muted">Nessuna risorsa di turno.</p>';
+
+  document.getElementById('pf-pools').innerHTML = form.pools.map((p, i) => `
+    <div class="pf-row">
+      <input class="grow" value="${esc(p.label)}" placeholder="Nome (es. Slot, Ki)" onchange="pfSet('pools',${i},'label',this.value)">
+      <select onchange="pfSet('pools',${i},'kind',this.value)">
+        <option value="Leveled" ${p.kind === 'Leveled' ? 'selected' : ''}>a livelli</option>
+        <option value="Points" ${p.kind === 'Points' ? 'selected' : ''}>a punti</option>
+      </select>
+      <label>ricarica <select onchange="pfSet('pools',${i},'rechargeCycle',this.value)">${cycleOptions(p.rechargeCycle)}</select></label>
+      <button class="ghost" title="Rimuovi" onclick="pfDel('pools',${i})">✕</button>
+    </div>`).join('') || '<p class="muted">Nessuna riserva.</p>';
+
+  document.getElementById('pf-stats').innerHTML = form.stats.map((s, i) => `
+    <div class="pf-row">
+      <input class="grow" value="${esc(s.label)}" placeholder="Nome (es. Forza, Umanità)" onchange="pfSet('stats',${i},'label',this.value)">
+      <label>di base <input class="pf-num" type="number" value="${s.default ?? 0}" onchange="pfSet('stats',${i},'default',Number(this.value))"></label>
+      <label>tiro <input style="width:8rem;font-family:ui-monospace,Consolas,monospace" value="${esc(s.roll ?? '')}"
+        placeholder="non si tira" title="es. 1d20, oppure vuoto se la statistica si guarda e basta"
+        onchange="pfSet('stats',${i},'roll',this.value)"></label>
+      <!-- Il modificatore: la regola con cui il punteggio diventa il numero che
+           si somma al dado. Acceso, @Nome nelle formule vale il modificatore;
+           spento, vale il punteggio intero (è il caso della CA, o dell'Umanità
+           in Vampiri). Prima non si poteva impostare dalla GUI, e una
+           statistica creata qui nasceva senza. -->
+      <label title="Se acceso, @${esc(s.label || 'Nome')} nelle formule vale il modificatore invece del punteggio">
+        <input type="checkbox" style="width:auto" ${s.modifier ? 'checked' : ''}
+               onchange="pfMod(${i}, this.checked)"> modificatore
+      </label>
+      ${s.modifier ? `
+        <label title="mod = (punteggio − questo) ÷ passo, arrotondato verso il basso">
+          da <input class="pf-num" type="number" value="${s.modifier.base ?? 10}"
+                    onchange="pfModSet(${i},'base',Number(this.value))"></label>
+        <label title="Ogni quanti punti il modificatore sale di 1">
+          ogni <input class="pf-num" type="number" min="1" value="${s.modifier.div ?? 2}"
+                      onchange="pfModSet(${i},'div',Number(this.value))"></label>
+        <span class="pf-hint">${esempioMod(s)}</span>` : ''}
+      <button class="ghost" title="Rimuovi" onclick="pfDel('stats',${i})">✕</button>
+    </div>`).join('') || '<p class="muted">Nessuna statistica.</p>';
+
+  document.getElementById('pf-cycles').innerHTML = form.cycles.map((c, i) => `
+    <div class="pf-row">
+      <input class="grow" value="${esc(c.label)}" placeholder="Nome (es. Riposo lungo)" onchange="pfSet('cycles',${i},'label',this.value)">
+      <label>rango <input class="pf-num" type="number" min="1" value="${c.rank || 1}" onchange="pfSet('cycles',${i},'rank',Number(this.value))"></label>
+      <label><input type="checkbox" ${c.perTurn ? 'checked' : ''} onchange="pfSet('cycles',${i},'perTurn',this.checked)"> a ogni turno</label>
+      <button class="ghost" title="Rimuovi" onclick="pfDel('cycles',${i})">✕</button>
+    </div>`).join('') || '<p class="muted">Nessun ciclo.</p>';
+
+  syncJson();
+}
+
+const syncJson = () => { document.getElementById('profile-json').value = JSON.stringify(form, null, 2); };
+
+document.getElementById('toggle-json').onclick = () => {
+  const t = document.getElementById('profile-json');
+  t.style.display = t.style.display === 'none' ? 'block' : 'none';
+  syncJson();
+};
+
+document.getElementById('pf-name').onchange = e => { form.name = e.target.value; syncJson(); };
+
+document.getElementById('load-preset').onclick = () => {
+  const i = Number(document.getElementById('pf-preset').value);
+  if (!presets[i]) return;
+  form = JSON.parse(JSON.stringify(presets[i]));
+  ensureArrays();
+  renderForm();
+  document.getElementById('profile-msg').textContent = 'Preset caricato — ricorda di salvare.';
+};
+
+function normalize() {
+  form.name = document.getElementById('pf-name').value.trim() || 'Profilo';
+  form.id = form.id || slug(form.name);
+  // Lo zero è un valore, non un campo vuoto: "|| 1" lo trasformava in 1, e una
+  // risorsa che il turno non dà (gli Attacchi, concessi dall'azione di Attacco)
+  // sarebbe diventata un attacco gratis a ogni turno, per tutti.
+  for (const t of form.turnResources) {
+    t.id = t.id || slug(t.label);
+    t.label = t.label || t.id;
+    const n = Number(t.perTurn);
+    t.perTurn = Number.isFinite(n) && n >= 0 ? n : 1;
+  }
+  for (const p of form.pools) { p.id = p.id || slug(p.label); p.label = p.label || p.id; p.kind = p.kind || 'Points'; }
+  for (const c of form.cycles) { c.id = c.id || slug(c.label); c.label = c.label || c.id; c.rank = Number(c.rank) || 1; c.perTurn = !!c.perTurn; }
+  for (const s of form.stats) {
+    s.id = s.id || slug(s.label);
+    s.label = s.label || s.id;
+    s.default = Number(s.default) || 0;
+    // Vuoto = non si tira. La stringa vuota e null vogliono dire la stessa cosa
+    // per il Master, ma solo null la dice al motore.
+    s.roll = (s.roll || '').trim() || null;
+
+    // Il modificatore: assente vuol dire "la statistica vale intera". Un passo
+    // di zero dividerebbe per zero, e un profilo si scrive a mano: qui si
+    // ferma prima di arrivare al tavolo.
+    if (s.modifier) {
+      s.modifier.base = Number(s.modifier.base) || 0;
+      s.modifier.div = Number(s.modifier.div) || 1;
+    } else {
+      s.modifier = null;
+    }
+  }
+  form.stats = form.stats.filter(s => s.label.trim() !== '');
+}
+
+/**
+ * Quante feature perderebbero la loro meccanica con il profilo che sto per
+ * salvare. Il conto si fa contro il form corrente, non contro il profilo
+ * attivo: è l'unica domanda che conta prima di premere Salva.
+ */
+function orphanCount() {
+  if (!state) return { features: 0, characters: 0 };
+  let features = 0;
+  let characters = 0;
+  for (const c of state.characters) {
+    const n = c.features.filter(f => isOrphanCost(form, f.cost)).length;
+    if (n > 0) { features += n; characters++; }
+  }
+  return { features, characters };
+}
+
+async function save() {
+  normalize();
+  const msg = document.getElementById('profile-msg');
+  const res = await fetch('/api/admin/profile', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+  });
+  if (res.ok) {
+    form = await res.json();
+    ensureArrays();
+    renderForm();
+    msg.textContent = 'Profilo salvato: le schede si aggiornano dal vivo.';
+    state = await getState();
+  } else {
+    const body = await res.json().catch(() => ({}));
+    msg.textContent = 'Errore: ' + (body.error || res.status);
+  }
+}
+
+// La paura resa concreta: non un paragrafo che avverte, ma il numero esatto.
+document.getElementById('save-profile').onclick = () => {
+  normalize();
+  const { features, characters } = orphanCount();
+  if (features === 0) { save(); return; }
+  confirmAction(
+    `Con questo profilo, ${features} feature su ${characters} ` +
+    `${characters === 1 ? 'personaggio' : 'personaggi'} ${features === 1 ? 'perderà' : 'perderanno'} ` +
+    `la loro meccanica: ${features === 1 ? 'resterà' : 'resteranno'} sulla scheda ma non ` +
+    `${features === 1 ? 'sarà attivabile' : 'saranno attivabili'} finché non ${features === 1 ? 'la rimappi' : 'le rimappi'} da Schede. Salvare?`,
+    save);
+};
+
+// ---- Avvio ----
+
+Promise.all([
+  fetch('/api/admin/profile/presets').then(r => r.json()),
+  fetch('/api/admin/profile').then(r => r.json()),
+  getState(),
+]).then(([p, active, s]) => {
+  presets = p;
+  document.getElementById('pf-preset').innerHTML = presets.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join('');
+  form = active;
+  state = s;
+  ensureArrays();
+  renderForm();
+}).catch(() => {});
+</script>
+</body>
+</html>

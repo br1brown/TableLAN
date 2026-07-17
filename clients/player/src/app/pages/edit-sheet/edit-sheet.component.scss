@@ -1,0 +1,102 @@
+/* Edit sheet specific styles */
+
+/* Il rifiuto del server, in chiaro. Una formula rotta si scopre qui, non
+   quando tocca a te al tavolo. */
+.save-error {
+  margin: 0 0 .75rem;
+  padding: .5rem .75rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+}
+
+/* I PF in modifica: authoring, non gioco. Il danno e la cura stanno sulla
+   scheda; qui si sale di livello. */
+.hp-edit {
+  display: flex;
+  align-items: flex-end;
+  gap: .5rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+
+    > span {
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text-muted);
+    }
+  }
+
+  input {
+    width: 5rem;
+    padding: .5rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hp-sep { padding-bottom: .55rem; color: var(--text-dim); }
+}
+
+/* Le riserve: una riga per pool, un campo per livello. Zero = non ce l'ha. */
+.pool-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+
+  & + & { margin-top: .6rem; }
+
+  .pool-label {
+    min-width: 9rem;
+    font-size: .8rem;
+    color: var(--text-muted);
+  }
+
+  .pool-tiers {
+    display: flex;
+    gap: .3rem;
+    flex-wrap: wrap;
+  }
+
+  .tier {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .1rem;
+
+    > span {
+      font-size: .6rem;
+      letter-spacing: .05em;
+      color: var(--text-dim);
+    }
+
+    input {
+      width: 2.6rem;
+      padding: .3rem 0;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+/* Il modificatore accanto al punteggio: è il numero che si somma al dado. */
+.s-mod {
+  min-width: 2ch;
+  text-align: center;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}

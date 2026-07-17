@@ -1,0 +1,250 @@
+<header class="topbar">
+    <h1><i class="ra ra-dragon"></i>TableLAN</h1>
+    <div style="display: flex; gap: .5rem; align-items: center;">
+      <button class="ghost" [class.active]="editMode()" (click)="editMode.set(!editMode())" style="font-size: .8rem;">
+        <i class="ra ra-quill-ink"></i> {{ editMode() ? 'Fine Modifica' : 'Modifica' }}
+      </button>
+      <div class="conn" [class.ok]="table.connected()">
+        {{ table.connected() ? 'Connesso' : 'Disconnesso' }}
+      </div>
+    </div>
+  </header>
+
+@if (table.rejection(); as rejection) {
+  <div class="toast">{{ rejection.reason }}</div>
+}
+
+<!-- L'esito del tiro: il totale grande, e sotto da dove viene. Il conto in
+     chiaro serve — è un tavolo, e i numeri si controllano a vicenda. -->
+@if (myRoll(); as roll) {
+  <div class="roll-result" (click)="table.lastRoll.set(null)">
+    <span class="rr-label">{{ roll.label }}</span>
+    <span class="rr-total">{{ roll.total }}</span>
+    <span class="rr-detail">
+      {{ roll.formula }} · {{ diceOf(roll) }}
+      @if (roll.attempts[roll.keptIndex].modifier) {
+        {{ roll.attempts[roll.keptIndex].modifier > 0 ? '+' : '−' }}
+        {{ abs(roll.attempts[roll.keptIndex].modifier) }}
+      }
+    </span>
+  </div>
+}
+
+@if (!character()) {
+  <!-- Selezione del personaggio: nessun account, nessun login (Capitolo 4).
+       Ci si unisce scansionando il QR e scegliendo la propria scheda. -->
+  <main class="picker">
+    <h2>Chi sei?</h2>
+    @if (table.state(); as state) {
+      @for (c of state.characters; track c.id) {
+        <button class="pick" (click)="select(c.id)">
+          <strong>{{ c.name }}</strong>
+          <span>PF {{ c.hp.current }}/{{ c.hp.max }}</span>
+        </button>
+      }
+    } @else {
+      <p class="muted">In attesa del server del Master…</p>
+    }
+  </main>
+} @else if (character(); as c) {
+  <main class="sheet">
+    <section class="status">
+      <div class="name-row">
+        <h2>{{ c.name }}</h2>
+        <div class="name-actions">
+          <button class="focus-toggle" [class.on]="focus()" (click)="focus.set(!focus())">
+            <i class="ra ra-targeted"></i> Focus
+          </button>
+          <!-- Turno, riposi e cambio scheda: azioni di cornice, non di gioco.
+               Stanno dietro un menù perché competevano in evidenza con le
+               azioni del personaggio, che sono il motivo per cui apri la scheda. -->
+          <button class="menu-toggle" [class.on]="menu()" (click)="menu.set(!menu())"
+                  aria-label="Altro" [attr.aria-expanded]="menu()">…</button>
+        </div>
+      </div>
+
+      @if (menu()) {
+        <div class="menu-sheet">
+          <button class="danger" (click)="forget(); menu.set(false)"><i class="ra ra-cancel"></i> Slogati</button>
+          @for (cy of restCycles(); track cy.id) {
+            <button (click)="rest(cy.id); menu.set(false)"><i class="ra ra-campfire"></i> {{ cy.label }}</button>
+          }
+          <button (click)="selectedId.set(null)"><i class="ra ra-player"></i> Cambia personaggio</button>
+        </div>
+      }
+
+      <!-- Usa il nuovo componente per i PF (che include anche la barra e i bottoni di modifica) -->
+      <app-hp-panel [c]="c"></app-hp-panel>
+
+      <!-- Chip dell'economia del turno, generate dal profilo di sistema. -->
+      <div class="chips">
+        @for (chip of turnChips(); track chip.id) {
+          <span class="chip" [class.spent]="chip.remaining <= 0">
+            {{ chip.label }}@if (chip.perTurn > 1) { <strong>{{ chip.remaining }}/{{ chip.perTurn }}</strong> }
+          </span>
+        }
+      </div>
+
+      <!-- Riserve di risorse: slot a livelli o pool a punti, dal profilo. -->
+      @for (pool of poolEntries(c); track pool.label) {
+        <div class="slots">
+          @if (pool.kind === 'Leveled') {
+            @for (tier of pool.tiers; track tier.level) {
+              <span class="slot">{{ pool.label }} L{{ tier.level }} <strong>{{ tier.remaining }}</strong>/{{ tier.max }}</span>
+            }
+          } @else {
+            @for (tier of pool.tiers; track tier.level) {
+              <span class="slot">{{ pool.label }}: <strong>{{ tier.remaining }}</strong>/{{ tier.max }}</span>
+            }
+          }
+        </div>
+      }
+
+      <!-- Statistiche homebrew: il client non le conosce, le disegna al volo
+           da ciò che il Master ha definito (Capitolo 10). -->
+      @if (customStatEntries(c).length > 0) {
+        <div class="custom-stats">
+          @for (stat of customStatEntries(c); track stat.name) {
+            <span class="slot">{{ stat.name }}: <strong>{{ stat.value }}</strong></span>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- Le tab non sono cablate: le genera il profilo, e ognuna raccoglie un
+         tipo di cosa. Il set cambia da personaggio a personaggio. -->
+    <nav class="tabs">
+      @for (tab of tabs(); track tab.id) {
+        <button [class.active]="activeTab()?.id === tab.id" (click)="view.set(tab.id)">
+          <i class="ra" [class]="tab.icon"></i> {{ tab.label }}
+        </button>
+      }
+    </nav>
+
+    @if (activeTab()?.id === 'zaino') {
+      <!-- Inventario ordinabile (Capitolo 9): quantità con ±, riordino con
+           le frecce, rimozione. Semplice, pensato per il pollice. -->
+      <section class="group inventory">
+        @for (item of c.inventory; track item.id; let i = $index) {
+          <div class="inv-item">
+            <div class="inv-order">
+              <button class="ghost" [disabled]="i === 0" (click)="moveItem(i, -1)">▲</button>
+              <button class="ghost" [disabled]="i === c.inventory.length - 1" (click)="moveItem(i, 1)">▼</button>
+            </div>
+            <span class="inv-name">{{ item.name }}</span>
+            <div class="inv-qty">
+              <button (click)="changeQuantity(item, -1)">−</button>
+              <span>{{ item.quantity }}</span>
+              <button (click)="changeQuantity(item, 1)">+</button>
+            </div>
+            <button class="ghost" (click)="removeItem(item)">✕</button>
+          </div>
+        } @empty {
+          <p class="muted">Inventario vuoto.</p>
+        }
+        <div class="inv-add">
+          <input [(ngModel)]="newItem.name" placeholder="Oggetto (es. Corda, 15m)">
+          <input type="number" min="1" [(ngModel)]="newItem.quantity" class="qty-input">
+          <button (click)="addItem()">Aggiungi</button>
+        </div>
+      </section>
+    } @else if (activeTab()?.id === 'tavolo') {
+      <app-tavolo-tab [otherCharacters]="otherCharacters()" [rollLog]="rollLog()"></app-tavolo-tab>
+    } @else {
+      <!-- Un solo modo di raggruppare, dentro ogni tab. I sottotitoli spariscono
+           quando il gruppo è uno solo: non c'è niente da distinguere. -->
+      @for (group of activeTab()?.groups; track group.label) {
+        <section class="group">
+          @if (activeTab()?.groups?.length! > 1) {
+            <h3>{{ group.label }}</h3>
+          }
+          
+          <!-- Pulsante Nuovo Turno prominente se siamo nella tab Azioni -->
+          @if (activeTab()?.id === 'azioni' && group.label === 'Azioni') {
+            <button class="end-turn-btn" (click)="resetTurn()" style="width: 100%; margin-bottom: 1rem; padding: .75rem; background: var(--gold); color: #14161c; border-radius: var(--radius-lg); font-weight: bold; border: none; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+              <i class="ra ra-cycle"></i> Termina Turno
+            </button>
+          }
+
+          <div class="features"> 
+            @for (feature of group.features; track feature.id) {
+              <app-feature-row 
+                [feature]="feature"
+                [canUse]="canUse(feature)"
+                [sourceLabel]="sourceLabel(feature)"
+                [costLabel]="costLabel(feature)"
+                [iconForFeature]="iconForFeature(feature)"
+                [effectLabel]="boundEffectLabel"
+                [expanded]="expanded().has(feature.id)"
+                [description]="descriptions().get(feature.descriptionId) ?? ''"
+                [editMode]="editMode()"
+                (toggle)="toggleFeature(feature)"
+                (toggleEffect)="toggleEffect(feature)"
+                (roll)="rollFeature(feature)"
+                (use)="use(feature)"
+                (save)="saveFeatureEdit(feature, $event.name)"
+                (delete)="deleteFeature(feature)">
+              </app-feature-row>
+            }
+          </div>
+        </section>
+      } @empty {
+        <p class="muted focus-empty">
+          @if (focus()) {
+            Nessuna azione disponibile adesso. Nuovo turno o riposo per ripristinare.
+          } @else {
+            Niente qui.
+          }
+        </p>
+      }
+    }
+
+    <!-- Sezione di aggiunta (Capitolo 10): il Master può aggiungere lui una
+         mutazione/oggetto/magia, oppure te la aggiungi da qui. Nessuno slot
+         richiesto per le magie: il costo è solo un dato.
+         In focus mode sparisce: lì si gioca, non si costruisce la scheda. -->
+    @if (!focus()) {
+    <section class="add">
+      @if (!showAddForm()) {
+        <button class="secondary add-toggle" (click)="showAddForm.set(true)">+ Aggiungi alla scheda</button>
+      } @else {
+        <div class="add-form">
+          <label>Nome
+            <input [(ngModel)]="draft.shortName" placeholder="es. Mutazione: Artigli">
+          </label>
+          <label>Costo
+            <select [(ngModel)]="draft.costKind">
+              <option value="None">Passiva</option>
+              @for (tr of profile()?.turnResources ?? []; track tr.id) {
+                <option [value]="tr.id">{{ tr.label }}</option>
+              }
+            </select>
+          </label>
+          <label>Usi max (vuoto = illimitati)
+            <input type="number" min="1" [(ngModel)]="draft.maxUses" placeholder="—">
+          </label>
+          @if (draft.maxUses) {
+            <label>Ricarica
+              <select [(ngModel)]="draft.recharge">
+                @for (cy of profile()?.cycles ?? []; track cy.id) {
+                  <option [value]="cy.id">{{ cy.label }}</option>
+                }
+              </select>
+            </label>
+          }
+          <label>Descrizione
+            <input [(ngModel)]="draft.description" placeholder="Testo mostrato all'espansione">
+          </label>
+          <div class="add-actions">
+            <button (click)="submitDraft()">Aggiungi</button>
+            <button class="secondary" (click)="showAddForm.set(false)">Annulla</button>
+          </div>
+        </div>
+      }
+    </section>
+
+    }
+  </main>
+}
+
+

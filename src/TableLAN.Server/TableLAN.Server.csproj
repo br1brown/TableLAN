@@ -1,0 +1,170 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Il progetto è il prodotto: l'exe che il Master lancia sul suo PC.
+         Il nome dell'assembly non deve dire "Server", che è solo una delle
+         due cose che fa (l'altra è la finestra nativa). -->
+    <AssemblyName>TableLAN</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!--
+      Versione del pacchetto: la scrive il workflow di release con
+      -p:InformationalVersion="<tag>+<sha>", e BuildInfo la rilegge da qui.
+      "dev" è il valore giusto per un build locale: non è un rilascio, e non
+      c'è nessun tag con cui confrontarlo.
+
+      IncludeSourceRevisionInInformationalVersion spento perché altrimenti
+      l'SDK appende un secondo "+<sha>" a quello che gli passiamo noi.
+    -->
+    <InformationalVersion>dev</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- L'icona incisa nell'exe: è quella che si vede nel file manager e nella
+         barra delle applicazioni di Windows. Vale solo su Windows, ed è la sola
+         via per cui l'exe stesso abbia una faccia prima ancora di partire. -->
+    <ApplicationIcon>../../assets/icona/tablelan.ico</ApplicationIcon>
+
+    <!--
+      wwwroot viaggia dentro l'assembly, non come cartella accanto all'exe.
+
+      Il Web SDK servirebbe i file statici dal disco, tramite la pipeline degli
+      "static web assets": è quella che lascia wwwroot come cartella sciolta in
+      pubblicazione, e che in Production non trova più i file (finestra nera).
+      Qui la si spegne e si incorporano i file come risorse: Program.cs li serve
+      con ManifestEmbeddedFileProvider. Un problema in meno in ogni scenario.
+    -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <!-- web.config serve solo dietro IIS: qui il web server è Kestrel, in-process. -->
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <!-- I file statici sono risorse incorporate, non contenuto da copiare. -->
+  <ItemGroup>
+    <Content Remove="wwwroot\**" />
+  </ItemGroup>
+
+  <!--
+    Le icone della finestra, incorporate.
+
+    Photino vuole SetIconFile(percorso), cioè un file vero su disco — ma qui il
+    pubblicato è un file solo, e su disco non c'è niente. Quindi viaggiano qui
+    dentro e WindowIcon le sputa in una cartella temporanea all'avvio.
+
+    Due formati perché sono due mondi: Windows la finestra la vuole .ico, GTK
+    su Linux la vuole .png. LogicalName fissa il nome con cui le si ripesca,
+    che altrimenti lo deriva l'SDK dal percorso e cambierebbe da sotto.
+
+    Sono file generati una volta e mai più: la sorgente è tablelan-1024.png,
+    lì accanto. Non c'è uno script che li rifà — l'icona è quella e resta
+    quella; se un giorno cambia, si rifanno i tagli a mano da quel master.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../assets/icona/tablelan.ico" LogicalName="TableLAN.icona.ico" />
+    <EmbeddedResource Include="../../assets/icona/tablelan.png" LogicalName="TableLAN.icona.png" />
+  </ItemGroup>
+
+  <!--
+    Pubblicazione: un eseguibile solo, e a fianco la base dati.
+
+    Il Master scarica TableLAN.exe, doppio clic, gioca: dentro ci sono runtime
+    .NET, DLL, librerie native (Photino, SQLite) e i file statici. Niente da
+    installare — tranne il runtime WebView2, che però Windows 11 ha già.
+
+    Vale solo in publish: build e F5 restano a file sciolti, che è quello che
+    si vuole mentre si sviluppa (niente ri-bundle a ogni modifica).
+  -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Niente trimming: EF Core e la serializzazione JSON risolvono i tipi
+         per reflection, e il linker taglierebbe roba che serve a runtime. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- Un file solo vuol dire anche niente .pdb a fianco: né il proprio
+         (DebugType) né quelli che arrivano dai progetti referenziati. -->
+    <DebugType>none</DebugType>
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.*" />
+    <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TableLAN.Core\TableLAN.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Compila il client Angular dei giocatori e lo pubblica in wwwroot al build
+    del server, così "F5 dalla solution" avvia tutto senza passi manuali.
+
+    - Cross-platform: usa 'npm' (niente bash), quindi va anche su Windows.
+    - Incrementale: rigira solo se cambiano i sorgenti del client (Inputs/Outputs).
+    - Disattivabile: `dotnet build -p:SkipClientBuild=true` per una build .NET veloce.
+    - Se Node/npm non c'è, avvisa e prosegue: la console del Master resta
+      funzionante, si perde solo la pagina dei giocatori finché non compili.
+    Per la pubblicazione a pacchetto usa scripts/build-client.sh, oppure vedi README.
+  -->
+  <PropertyGroup>
+    <ClientDir>$(MSBuildProjectDirectory)/../../clients/player</ClientDir>
+    <ClientDist>$(ClientDir)/dist/player/browser</ClientDist>
+    <ClientMarker>$(MSBuildProjectDirectory)/wwwroot/.client-built</ClientMarker>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ClientInputs Include="$(ClientDir)/src/**/*" />
+    <ClientInputs Include="$(ClientDir)/package.json" />
+    <ClientInputs Include="$(ClientDir)/angular.json" />
+  </ItemGroup>
+
+  <Target Name="BuildAngularClient" BeforeTargets="Build" Condition="'$(SkipClientBuild)' != 'true'" Inputs="@(ClientInputs)" Outputs="$(ClientMarker)">
+
+    <!-- Rileva npm senza far fallire il build se manca. -->
+    <Exec Command="npm --version" WorkingDirectory="$(ClientDir)" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+    </Exec>
+    <PropertyGroup>
+      <NpmExitCode Condition="'$(NpmExitCode)' == ''">1</NpmExitCode>
+    </PropertyGroup>
+
+    <Warning Condition="'$(NpmExitCode)' != '0'" Text="npm non trovato: il client dei giocatori non è stato compilato. La console del Master (/admin) funziona lo stesso; per la pagina dei giocatori installa Node.js e ricompila, oppure lancia scripts/build-client.sh." />
+
+    <Message Condition="'$(NpmExitCode)' == '0'" Importance="high" Text="TableLAN: compilo il client Angular dei giocatori…" />
+    <Exec Condition="'$(NpmExitCode)' == '0' and !Exists('$(ClientDir)/node_modules')" Command="npm ci" WorkingDirectory="$(ClientDir)" />
+    <Exec Condition="'$(NpmExitCode)' == '0'" Command="npm run build" WorkingDirectory="$(ClientDir)" />
+
+    <!-- Ripulisce wwwroot preservando la console del Master, poi copia il build. -->
+    <ItemGroup Condition="'$(NpmExitCode)' == '0'">
+      <OldClient Include="wwwroot/**/*" Exclude="wwwroot/admin/**/*" />
+      <NewClient Include="$(ClientDist)/**/*" />
+    </ItemGroup>
+    <Delete Condition="'$(NpmExitCode)' == '0'" Files="@(OldClient)" />
+    <Copy Condition="'$(NpmExitCode)' == '0'" SourceFiles="@(NewClient)" DestinationFiles="@(NewClient->'wwwroot/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Touch Condition="'$(NpmExitCode)' == '0'" Files="$(ClientMarker)" AlwaysCreate="true" />
+  </Target>
+
+  <!--
+    Incorpora wwwroot come risorse.
+
+    L'ItemGroup sta dentro il Target, e il Target dipende da BuildAngularClient,
+    perché wwwroot contiene anche il bundle Angular appena generato: a tempo di
+    valutazione del progetto quei file possono non esistere ancora, e si
+    incorporerebbe una versione vecchia — o niente.
+  -->
+  <Target Name="EmbedWwwroot" DependsOnTargets="BuildAngularClient" BeforeTargets="PrepareForBuild;GenerateEmbeddedFilesManifest">
+    <ItemGroup>
+      <EmbeddedResource Include="wwwroot/**/*" Exclude="wwwroot/.client-built" />
+    </ItemGroup>
+  </Target>
+
+</Project>

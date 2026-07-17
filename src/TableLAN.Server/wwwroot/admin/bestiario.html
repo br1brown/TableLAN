@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TableLAN — Bestiario</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="assets/rpg-icons.css">
+<link rel="stylesheet" href="assets/console.css">
+<style>
+  .monsters { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: .6rem; }
+  .monster { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; background: var(--surface); border-radius: var(--radius-lg); padding: .6rem .9rem; }
+  .monster .m-name { font-weight: 600; flex: 1; min-width: 8rem; }
+  .monster .m-hp { color: var(--hp-text); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .monster .m-ac { color: var(--info); font-size: .85rem; }
+  .monster .m-notes { flex-basis: 100%; color: var(--text-muted); font-size: .8rem; white-space: pre-wrap; }
+  .new-monster { max-width: 42rem; }
+</style>
+</head>
+<body>
+<header></header>
+<main>
+  <h2 class="section-title"><i class="ra ra-monster-skull"></i>Bestiario</h2>
+  <p class="page-intro">I blocchi statistici che prepari. Solo tuoi: i giocatori non li vedono.</p>
+
+  <details class="new-monster">
+    <summary>+ Aggiungi un mostro</summary>
+    <div class="form-grid">
+      <div style="grid-column:1/-1"><label>Nome</label><input id="mon-name" placeholder="es. Aberrazione di Drakkenheim"></div>
+      <div><label>PF</label><input id="mon-hp" type="number" min="1" value="10"></div>
+      <div><label>CA</label><input id="mon-ac" type="number" min="1" value="12"></div>
+      <div style="grid-column:1/-1"><label>Blocco statistico / note</label><textarea id="mon-notes" rows="4" placeholder="Copiato dal manuale che possiedi"></textarea></div>
+    </div>
+    <div class="form-actions"><button id="add-monster">Aggiungi al bestiario</button></div>
+  </details>
+
+  <div id="monsters" class="monsters" style="margin-top:1.25rem"></div>
+</main>
+
+<script type="module">
+import { mountHeader, mountConfirm, confirmAction, esc } from './assets/console.js';
+
+mountHeader('bestiario.html');
+mountConfirm();
+
+let monsters = [];
+
+document.getElementById('add-monster').onclick = async () => {
+  const name = document.getElementById('mon-name').value.trim();
+  if (!name) return;
+  await fetch('/api/admin/monsters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      maxHp: Number(document.getElementById('mon-hp').value || 1),
+      armorClass: Number(document.getElementById('mon-ac').value || 10),
+      notes: document.getElementById('mon-notes').value.trim() || null,
+    }),
+  });
+  document.getElementById('mon-name').value = '';
+  document.getElementById('mon-notes').value = '';
+  refresh();
+};
+
+window.monsterHp = async (id, delta) => {
+  const res = await fetch(`/api/admin/monsters/${id}/hp`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delta }),
+  });
+  if (res.ok) render(await res.json());
+};
+
+window.askDeleteMonster = id => {
+  const m = monsters.find(x => x.id === id);
+  confirmAction(`Rimuovere «${m ? m.name : 'questo mostro'}» dal bestiario?`, async () => {
+    const res = await fetch(`/api/admin/monsters/${id}`, { method: 'DELETE' });
+    if (res.ok) render(await res.json());
+  });
+};
+
+// Un mostro ora arriva come una scheda vera — stesso DTO di un PG: `hp` è un
+// oggetto, la CA sta fra le statistiche. Prima queste righe leggevano
+// `m.armorClass` e `m.currentHp`, cioè i campi della riga grezza di SQLite.
+function render(list) {
+  monsters = list;
+  document.getElementById('monsters').innerHTML = list.map(m => `
+    <div class="monster">
+      <span class="m-name">${esc(m.name)}</span>
+      <span class="m-ac">CA ${m.customStats?.CA ?? '—'}</span>
+      <span class="m-hp">PF ${m.hp.current}/${m.hp.max}</span>
+      <button class="secondary" onclick="monsterHp('${m.id}', -5)">−5</button>
+      <button class="secondary" onclick="monsterHp('${m.id}', -1)">−1</button>
+      <button class="secondary" onclick="monsterHp('${m.id}', 1)">+1</button>
+      <a href="/#/edit/${m.id}" class="button ghost" title="Apri la scheda">🔗</a>
+      <button class="ghost" title="Rimuovi" onclick="askDeleteMonster('${m.id}')">✕</button>
+      ${m.notes ? `<div class="m-notes">${esc(m.notes)}</div>` : ''}
+    </div>`).join('') || '<p class="empty">Nessun mostro. Aggiungine uno qui sopra.</p>';
+}
+
+const refresh = () => fetch('/api/admin/monsters').then(r => r.json()).then(render).catch(() => {});
+refresh();
+</script>
+</body>
+</html>

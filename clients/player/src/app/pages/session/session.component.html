@@ -1,260 +1,251 @@
-<header class="topbar">
-    <h1><i class="ra ra-dragon"></i>TableLAN</h1>
-    <div style="display: flex; gap: .5rem; align-items: center;">
-      <button class="ghost" (click)="goToEdit()" style="font-size: .8rem;">
-        <i class="ra ra-quill-ink"></i> Modifica Scheda
+<nav class="navbar bg-body-tertiary border-bottom mb-3">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0"><i class="ra ra-dragon text-warning"></i> TableLAN</span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" (click)="goToEdit()">
+        <i class="ra ra-quill-ink"></i> Modifica
       </button>
-      <div class="conn" [class.ok]="table.connected()">
+      <span class="badge rounded-pill"
+            [class.text-bg-success]="table.connected()"
+            [class.text-bg-danger]="!table.connected()">
         {{ table.connected() ? 'Connesso' : 'Disconnesso' }}
+      </span>
+    </div>
+  </div>
+</nav>
+
+<!-- Notifiche fugaci: rifiuto (rosso) e conseguenza non bloccante (giallo). -->
+<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3">
+  @if (table.rejection(); as rejection) {
+    <div class="alert alert-danger shadow mb-2 py-2">{{ rejection.reason }}</div>
+  }
+  @if (table.notice(); as notice) {
+    <div class="alert alert-warning shadow mb-2 py-2">{{ notice }}</div>
+  }
+</div>
+
+<div class="container pb-4">
+  <!-- L'esito del tiro: il totale grande, e sotto da dove viene. -->
+  @if (myRoll(); as roll) {
+    <div class="text-center my-3" role="button" (click)="table.lastRoll.set(null)">
+      <div class="text-secondary small">
+        {{ roll.label }}
+        @if (roll.outcome) {
+          <span class="badge rounded-pill ms-1"
+                [class.text-bg-warning]="roll.outcome === 'hope' || roll.outcome === 'crit'"
+                [class.text-bg-danger]="roll.outcome === 'fear'">{{ outcomeLabel(roll.outcome) }}</span>
+        }
+      </div>
+      <div class="display-3 fw-bold text-warning font-monospace lh-1">{{ roll.total }}</div>
+      <div class="small text-secondary font-monospace">@for (d of keptDice(roll); track $index) {
+        <span [class.text-warning]="d.role === 'hope'" [class.text-danger]="d.role === 'fear'"
+              [class.text-info]="d.role === 'fudge'"
+              [class.text-decoration-line-through]="d.role === 'dropped'" [class.opacity-50]="d.role === 'dropped'">{{ dieText(d) }} </span>
+      }{{ tailOf(roll) }}</div>
+    </div>
+  }
+
+  @if (!character()) {
+    <!-- Selezione del personaggio: nessun account, nessun login. -->
+    <h2 class="my-3">Chi sei?</h2>
+    @if (table.state(); as state) {
+      <div class="list-group">
+        @for (c of state.characters; track c.id) {
+          <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                  (click)="select(c.id)">
+            <strong>{{ c.name }}</strong>
+            <span class="text-secondary font-monospace">PF {{ c.hp.current }}/{{ c.hp.max }}</span>
+          </button>
+        }
+      </div>
+    } @else {
+      <p class="text-secondary">In attesa del server del Master…</p>
+    }
+  } @else if (character(); as c) {
+    <!-- ---- Testa della scheda ---- -->
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+      <h2 class="mb-0 text-truncate">{{ c.name }}</h2>
+      <div class="d-flex gap-2 flex-shrink-0">
+        <button class="btn btn-sm" [class.btn-warning]="combattimento()" [class.btn-outline-secondary]="!combattimento()"
+                (click)="combattimento.set(!combattimento())" [attr.aria-pressed]="combattimento()">
+          <i class="ra ra-helmet"></i> In combattimento
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" [class.active]="menu()" (click)="menu.set(!menu())"
+                aria-label="Altro" [attr.aria-expanded]="menu()">…</button>
       </div>
     </div>
-  </header>
 
-@if (table.rejection(); as rejection) {
-  <div class="toast">{{ rejection.reason }}</div>
-}
-
-<!-- Riuscito, ma è caduto qualcosa. Non è un rifiuto: colore diverso. -->
-@if (table.notice(); as notice) {
-  <div class="toast notice">{{ notice }}</div>
-}
-
-<!-- L'esito del tiro: il totale grande, e sotto da dove viene. Il conto in
-     chiaro serve — è un tavolo, e i numeri si controllano a vicenda. -->
-@if (myRoll(); as roll) {
-  <div class="roll-result" (click)="table.lastRoll.set(null)">
-    <span class="rr-label">{{ roll.label }}</span>
-    @if (roll.outcome) {
-      <span class="rr-outcome" [class]="'oc-' + roll.outcome">{{ outcomeLabel(roll.outcome) }}</span>
-    }
-    <span class="rr-total">{{ roll.total }}</span>
-    <span class="rr-detail">@for (d of keptDice(roll); track $index) {
-      <span class="die" [class.die-hope]="d.role === 'hope'" [class.die-fear]="d.role === 'fear'">d{{ d.sides }}:{{ d.value }}</span>
-    }{{ tailOf(roll) }}</span>
-  </div>
-}
-
-@if (!character()) {
-  <!-- Selezione del personaggio: nessun account, nessun login (Capitolo 4).
-       Ci si unisce scansionando il QR e scegliendo la propria scheda. -->
-  <main class="picker">
-    <h2>Chi sei?</h2>
-    @if (table.state(); as state) {
-      @for (c of state.characters; track c.id) {
-        <button class="pick" (click)="select(c.id)">
-          <strong>{{ c.name }}</strong>
-          <span>PF {{ c.hp.current }}/{{ c.hp.max }}</span>
+    @if (menu()) {
+      <div class="list-group mb-3">
+        <button class="list-group-item list-group-item-action text-danger" (click)="forget(); menu.set(false)">
+          <i class="ra ra-cancel"></i> Slogati
         </button>
-      }
-    } @else {
-      <p class="muted">In attesa del server del Master…</p>
-    }
-  </main>
-} @else if (character(); as c) {
-  <main class="sheet">
-    <section class="status">
-      <div class="name-row">
-        <h2>{{ c.name }}</h2>
-        <div class="name-actions">
-          <!-- Nomina il momento, non il meccanismo: "Focus" era il nome della
-               legge (Hick-Hyman), e al tavolo non lo capiva nessuno. Acceso
-               durante l'iniziativa, spento fuori: è la modalità combattimento
-               senza doverne fare una tab. -->
-          <button class="combattimento-toggle" [class.on]="combattimento()"
-                  (click)="combattimento.set(!combattimento())"
-                  [attr.aria-pressed]="combattimento()">
-            <i class="ra ra-helmet"></i> In combattimento
+        @for (cy of restCycles(); track cy.id) {
+          <button class="list-group-item list-group-item-action" (click)="rest(cy.id); menu.set(false)">
+            <i class="ra ra-campfire"></i> {{ cy.label }}
           </button>
-          <!-- Turno, riposi e cambio scheda: azioni di cornice, non di gioco.
-               Stanno dietro un menù perché competevano in evidenza con le
-               azioni del personaggio, che sono il motivo per cui apri la scheda. -->
-          <button class="menu-toggle" [class.on]="menu()" (click)="menu.set(!menu())"
-                  aria-label="Altro" [attr.aria-expanded]="menu()">…</button>
-        </div>
+        }
+        <button class="list-group-item list-group-item-action" (click)="forget(); menu.set(false)">
+          <i class="ra ra-player"></i> Cambia personaggio
+        </button>
       </div>
+    }
 
-      @if (menu()) {
-        <div class="menu-sheet">
-          <button class="danger" (click)="forget(); menu.set(false)"><i class="ra ra-cancel"></i> Slogati</button>
-          @for (cy of restCycles(); track cy.id) {
-            <button (click)="rest(cy.id); menu.set(false)"><i class="ra ra-campfire"></i> {{ cy.label }}</button>
-          }
-          <button (click)="selectedId.set(null)"><i class="ra ra-player"></i> Cambia personaggio</button>
-        </div>
-      }
+    <app-hp-panel [c]="c"></app-hp-panel>
 
-      <!-- Usa il nuovo componente per i PF (che include anche la barra e i bottoni di modifica) -->
-      <app-hp-panel [c]="c"></app-hp-panel>
+    @if (isMyTurn()) {
+      <div class="alert alert-warning py-1 my-2 text-center"><i class="ra ra-hand"></i> Tocca a te</div>
+    }
 
-      <!-- L'unica cosa che l'iniziativa del Master fa alla tua scheda: dirti
-           che tocca a te. Non ti ricarica e non ti chiude niente. -->
-      @if (isMyTurn()) {
-        <p class="my-turn"><i class="ra ra-hand" aria-hidden="true"></i> Tocca a te</p>
-      }
-
-      <!-- Chip dell'economia del turno, generate dal profilo di sistema.
-           È la voce più forte della testa della scheda: risponde a "cosa posso
-           fare adesso", che è il motivo per cui apri l'app. L'icona è la stessa
-           del gruppo omonimo nella tab Azioni: il chip "Azione" e la sezione
-           AZIONE si riconoscono a colpo d'occhio come la stessa cosa. -->
-      <div class="chips">
-        @for (chip of turnChips(); track chip.id) {
-          <span class="chip" [class.spent]="chip.remaining <= 0">
-            <i class="ra" [class]="iconForCost(chip.id)" aria-hidden="true"></i>
-            {{ chip.label }}@if (chip.perTurn > 1) { <strong>{{ chip.remaining }}/{{ chip.perTurn }}</strong> }
+    <!-- Gli stati che il Master ti ha messo addosso: li vedi, non li togli tu. -->
+    @if (myConditions().length) {
+      <div class="d-flex flex-wrap gap-1 my-2">
+        @for (c of myConditions(); track c.id) {
+          <span class="badge rounded-pill text-bg-danger fw-normal">
+            <i class="ra ra-skull"></i> {{ c.label }}@if (c.rounds != null) { <span class="opacity-75 ms-1">· {{ c.rounds }} round</span> }
           </span>
         }
       </div>
+    }
 
-      <!-- Su cosa stai concentrando. Sta in testa alla scheda perché è l'unica
-           cosa che dura fra i turni: te la porti dietro, e te la scordi. -->
-      @for (occ of c.occupied ?? []; track occ.slot) {
-        <div class="occupied">
-          <i class="ra ra-aura" aria-hidden="true"></i>
-          <span class="occ-label">{{ occ.label }}:</span>
-          <strong>{{ occ.featureName }}</strong>
-          <button class="occ-drop" (click)="release(occ.slot)"
-                  [attr.aria-label]="'Smetti: ' + occ.featureName">✕</button>
-        </div>
+    <!-- Economia del turno: cosa posso fare adesso. -->
+    <div class="d-flex flex-wrap gap-1 my-2">
+      @for (chip of turnChips(); track chip.id) {
+        <span class="badge rounded-pill fs-6 fw-normal"
+              [class.text-bg-secondary]="chip.remaining <= 0"
+              [class.text-bg-primary]="chip.remaining > 0">
+          <i class="ra" [class]="iconForCost(chip.id)"></i>
+          {{ chip.label }}@if (chip.perTurn > 1) { <strong>{{ chip.remaining }}/{{ chip.perTurn }}</strong> }
+        </span>
       }
+    </div>
 
-      <!-- Vantaggio/svantaggio: si arma qui e vale per il tiro che tocchi
-           dopo, poi torna da sé a normale. È l'unica cosa che cambia un tiro
-           senza cambiare la formula. -->
-      <div class="adv">
-        <button [class.on]="keep() === 'Highest'" (click)="toggleKeep('Highest')"
-                [attr.aria-pressed]="keep() === 'Highest'">
-          <i class="ra ra-angel-wings" aria-hidden="true"></i> Vantaggio
-        </button>
-        <button [class.on]="keep() === 'Lowest'" (click)="toggleKeep('Lowest')"
-                [attr.aria-pressed]="keep() === 'Lowest'">
-          <i class="ra ra-broken-skull" aria-hidden="true"></i> Svantaggio
-        </button>
+    <!-- Su cosa stai concentrando: l'unica cosa che dura fra i turni. -->
+    @for (occ of c.occupied ?? []; track occ.slot) {
+      <div class="alert alert-secondary d-flex align-items-center gap-2 py-1 my-2">
+        <i class="ra ra-aura"></i>
+        <span class="text-secondary">{{ occ.label }}:</span>
+        <strong class="flex-grow-1">{{ occ.featureName }}</strong>
+        <button class="btn btn-sm btn-outline-secondary border-0" (click)="release(occ.slot)"
+                [attr.aria-label]="'Smetti: ' + occ.featureName">✕</button>
       </div>
+    }
 
-      <!-- Riserve di risorse: slot a livelli o pool a punti, dal profilo. -->
-      @for (pool of poolEntries(c); track pool.label) {
-        <div class="slots">
-          @if (pool.kind === 'Leveled') {
-            @for (tier of pool.tiers; track tier.level) {
-              <span class="slot">{{ pool.label }} L{{ tier.level }} <strong>{{ tier.remaining }}</strong>/{{ tier.max }}</span>
-            }
-          } @else {
-            @for (tier of pool.tiers; track tier.level) {
-              <span class="slot">{{ pool.label }}: <strong>{{ tier.remaining }}</strong>/{{ tier.max }}</span>
-            }
-          }
-        </div>
-      }
+    <!-- Vantaggio / svantaggio: si arma qui e vale per il tiro dopo. -->
+    <div class="btn-group w-100 my-2" role="group">
+      <button class="btn btn-outline-warning" [class.active]="keep() === 'Highest'"
+              (click)="toggleKeep('Highest')" [attr.aria-pressed]="keep() === 'Highest'">
+        <i class="ra ra-angel-wings"></i> Vantaggio
+      </button>
+      <button class="btn btn-outline-danger" [class.active]="keep() === 'Lowest'"
+              (click)="toggleKeep('Lowest')" [attr.aria-pressed]="keep() === 'Lowest'">
+        <i class="ra ra-broken-skull"></i> Svantaggio
+      </button>
+    </div>
 
-      <!-- Statistiche homebrew: il client non le conosce, le disegna al volo
-           da ciò che il Master ha definito (Capitolo 10).
-           In combattimento spariscono: sono identità, non stato — non cambiano
-           durante il turno, e i numeri che servono al dado sono già sui bottoni
-           dei tiri. -->
-      @if (!combattimento() && customStatEntries(c).length > 0) {
-        <div class="custom-stats">
-          @for (stat of customStatEntries(c); track stat.name) {
-            <!-- Il modificatore è il numero che si usa: sta in evidenza, e il
-                 punteggio resta accanto per chi lo cerca. -->
-            <span class="stat">
-              {{ stat.name }}: <strong>{{ stat.value }}</strong>@if (stat.mod) { <em class="stat-mod">{{ stat.mod }}</em> }
-            </span>
-          }
-        </div>
-      }
-    </section>
+    <!-- Riserve: slot a livelli o pool a punti. -->
+    @for (pool of poolEntries(c); track pool.label) {
+      <div class="d-flex flex-wrap gap-1 my-2">
+        @for (tier of pool.tiers; track tier.level) {
+          <span class="badge rounded-pill text-bg-info fw-normal">
+            @if (pool.kind === 'Leveled') { {{ pool.label }} L{{ tier.level }} }
+            @else { {{ pool.label }}: }
+            <strong>{{ tier.remaining }}</strong>/{{ tier.max }}
+          </span>
+        }
+      </div>
+    }
 
-    <!-- Le tab non sono cablate: le genera il profilo, e ognuna raccoglie un
-         tipo di cosa. Il set cambia da personaggio a personaggio. -->
-    <nav class="tabs">
+    <!-- Statistiche homebrew, disegnate al volo dal profilo. -->
+    @if (!combattimento() && customStatEntries(c).length > 0) {
+      <div class="d-flex flex-wrap gap-1 my-2">
+        @for (stat of customStatEntries(c); track stat.name) {
+          <span class="badge rounded-pill text-bg-dark fw-normal border">
+            {{ stat.name }}: <strong>{{ stat.value }}</strong>@if (stat.mod) { <em class="text-warning ms-1">{{ stat.mod }}</em> }
+          </span>
+        }
+      </div>
+    }
+
+    <!-- Tab generate dal profilo. -->
+    <ul class="nav nav-pills flex-nowrap overflow-auto my-3">
       @for (tab of tabs(); track tab.id) {
-        <button [class.active]="activeTab()?.id === tab.id" (click)="view.set(tab.id)">
-          <i class="ra" [class]="tab.icon"></i> {{ tab.label }}
-        </button>
+        <li class="nav-item">
+          <button class="nav-link text-nowrap" [class.active]="activeTab()?.id === tab.id" (click)="view.set(tab.id)">
+            <i class="ra" [class]="tab.icon"></i> {{ tab.label }}
+          </button>
+        </li>
       }
-    </nav>
+    </ul>
 
     @if (activeTab()?.id === 'zaino') {
-      <!-- Inventario ordinabile (Capitolo 9): quantità con ±, riordino con
-           le frecce, rimozione. Semplice, pensato per il pollice. -->
-      <section class="group inventory">
+      <!-- Inventario ordinabile: quantità con ±, riordino con le frecce. -->
+      <div class="list-group mb-3">
         @for (item of c.inventory; track item.id; let i = $index) {
-          <div class="inv-item">
-            <div class="inv-order">
-              <button class="ghost" [disabled]="i === 0" (click)="moveItem(i, -1)">▲</button>
-              <button class="ghost" [disabled]="i === c.inventory.length - 1" (click)="moveItem(i, 1)">▼</button>
+          <div class="list-group-item d-flex align-items-center gap-2">
+            <div class="btn-group-vertical btn-group-sm">
+              <button class="btn btn-outline-secondary border-0 py-0" [disabled]="i === 0" (click)="moveItem(i, -1)">▲</button>
+              <button class="btn btn-outline-secondary border-0 py-0" [disabled]="i === c.inventory.length - 1" (click)="moveItem(i, 1)">▼</button>
             </div>
-            <span class="inv-name">{{ item.name }}</span>
-            <div class="inv-qty">
-              <button (click)="changeQuantity(item, -1)">−</button>
-              <span>{{ item.quantity }}</span>
-              <button (click)="changeQuantity(item, 1)">+</button>
+            <span class="flex-grow-1">{{ item.name }}</span>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-secondary" (click)="changeQuantity(item, -1)">−</button>
+              <span class="btn btn-outline-secondary disabled">{{ item.quantity }}</span>
+              <button class="btn btn-outline-secondary" (click)="changeQuantity(item, 1)">+</button>
             </div>
-            <button class="ghost" (click)="removeItem(item)">✕</button>
+            <button class="btn btn-sm btn-outline-secondary border-0" (click)="removeItem(item)">✕</button>
           </div>
         } @empty {
-          <p class="muted">Inventario vuoto.</p>
+          <p class="text-secondary">Inventario vuoto.</p>
         }
-        <div class="inv-add">
-          <input [(ngModel)]="newItem.name" placeholder="Oggetto (es. Corda, 15m)">
-          <input type="number" min="1" [(ngModel)]="newItem.quantity" class="qty-input">
-          <button (click)="addItem()">Aggiungi</button>
-        </div>
-      </section>
+      </div>
+      <div class="input-group mb-3">
+        <input class="form-control" [(ngModel)]="newItem.name" placeholder="Oggetto (es. Corda, 15m)">
+        <input class="form-control flex-grow-0 w-auto" type="number" min="1" [(ngModel)]="newItem.quantity" aria-label="Quantità">
+        <button class="btn btn-outline-secondary" (click)="addItem()">Aggiungi</button>
+      </div>
     } @else if (activeTab()?.id === 'tavolo') {
-      <app-tavolo-tab [otherCharacters]="otherCharacters()" [rollLog]="rollLog()"></app-tavolo-tab>
+      <app-tavolo-tab [otherCharacters]="otherCharacters()" [rollLog]="rollLog()"
+                      [characterId]="character()?.id ?? ''" [dice]="profile()?.dice"></app-tavolo-tab>
     } @else {
-      <!-- Un solo modo di raggruppare, dentro ogni tab. Il titolo sparisce
-           quando il gruppo è uno solo e sta già aperto: non c'è niente da
-           distinguere e niente da aprire. -->
       @for (group of visibleGroups(); track group.label) {
-        <section class="group">
+        <section class="mb-3">
           @if (visibleGroups().length > 1 || group.chiusoDiDefault) {
-            <!-- Il titolo è il comando: si tocca e il gruppo si apre. Porta il
-                 conto perché è l'informazione che serve da chiuso — "Livello 2:
-                 ventisei" ti dice se vale la pena aprirlo. -->
-            <h3>
-              <button class="group-toggle" (click)="apriChiudi(group)"
-                      [attr.aria-expanded]="gruppoAperto(group)">
-                <i class="ra" [class]="gruppoAperto(group) ? 'ra-arrow-down' : 'ra-arrow-right'"
-                   aria-hidden="true"></i>
-                {{ group.label }}
-                <span class="group-count">{{ group.features.length }}</span>
-              </button>
-            </h3>
+            <button class="btn btn-link text-decoration-none text-body p-0 mb-2 d-flex align-items-center gap-2"
+                    (click)="apriChiudi(group)" [attr.aria-expanded]="gruppoAperto(group)">
+              <i class="ra" [class]="gruppoAperto(group) ? 'ra-arrow-down' : 'ra-arrow-right'"></i>
+              <span class="h5 mb-0">{{ group.label }}</span>
+              <span class="badge rounded-pill text-bg-secondary">{{ group.features.length }}</span>
+            </button>
           }
 
-          <!-- @if e non [hidden]: un gruppo chiuso non deve stare nel DOM
-               nascosto, deve non esserci. Sono ventisei righe con dentro
-               altrettanti componenti. -->
           @if (gruppoAperto(group)) {
-          <div class="features">
-            @for (feature of group.features; track feature.id) {
-              <app-feature-row 
-                [feature]="feature"
-                [canUse]="canUse(feature)"
-                [sourceLabel]="sourceLabel(feature)"
-                [costLabel]="costLabel(feature)"
-                [grantLabel]="grantLabel(feature)"
-                [iconForFeature]="iconForFeature(feature)"
-                [effectLabel]="boundEffectLabel"
-                [expanded]="expanded().has(feature.id)"
-                [description]="descriptions().get(feature.descriptionId) ?? ''"
-                [editMode]="false"
-                (toggle)="toggleFeature(feature)"
-                (toggleEffect)="toggleEffect(feature)"
-                (roll)="rollFeature(feature)"
-                (use)="use(feature)"
-                (save)="saveFeatureEdit(feature, $event.name)"
-                (delete)="deleteFeature(feature)">
-              </app-feature-row>
-            }
-          </div>
+            <div class="d-flex flex-column">
+              @for (feature of group.features; track feature.id) {
+                <app-feature-row
+                  [feature]="feature"
+                  [canUse]="canUse(feature)"
+                  [sourceLabel]="sourceLabel(feature)"
+                  [costLabel]="costLabel(feature)"
+                  [grantLabel]="grantLabel(feature)"
+                  [iconForFeature]="iconForFeature(feature)"
+                  [effectLabel]="boundEffectLabel"
+                  [expanded]="expanded().has(feature.id)"
+                  [description]="descriptions().get(feature.descriptionId) ?? ''"
+                  [editMode]="false"
+                  (toggle)="toggleFeature(feature)"
+                  (toggleEffect)="toggleEffect(feature)"
+                  (roll)="rollFeature(feature)"
+                  (use)="use(feature)"
+                  (save)="saveFeatureEdit(feature, $event.name)"
+                  (delete)="deleteFeature(feature)">
+                </app-feature-row>
+              }
+            </div>
           }
         </section>
       } @empty {
-        <p class="muted vuoto">
+        <p class="text-secondary text-center py-3">
           @if (combattimento()) {
             Nessuna azione disponibile adesso. Nuovo turno o riposo per ripristinare.
           } @else {
@@ -263,19 +254,11 @@
         </p>
       }
 
-      <!-- Il turno si chiude in fondo a ogni tab da cui si agisce, dopo le
-           azioni: è l'ordine in cui si gioca, e non compete in evidenza con ciò
-           che si può ancora fare. Non solo sotto "Azioni": un incantatore il
-           turno lo passa nella tab delle sue magie, e mandarlo a cercare
-           altrove il pulsante per chiuderlo sarebbe una beffa. -->
       @if (tabDaCuiSiAgisce()) {
-        <button class="end-turn-btn" (click)="resetTurn()">
+        <button class="btn btn-warning btn-lg w-100 fw-bold shadow" (click)="resetTurn()">
           <i class="ra ra-cycle"></i> Termina Turno
         </button>
       }
     }
-
-  </main>
-}
-
-
+  }
+</div>

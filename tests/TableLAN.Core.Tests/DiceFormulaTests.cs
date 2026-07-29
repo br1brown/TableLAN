@@ -32,6 +32,14 @@ public class DiceFormulaParseTests
     [InlineData("1d8 + 2 - 1d4")]
     [InlineData("duality: 2d12+@Agilità")]
     [InlineData("duality: 1d12+1d12")]
+    [InlineData("4d6kh3")]
+    [InlineData("2d20kl1")]
+    [InlineData("4d6KH3+2")]
+    [InlineData("@Forzad6kh2")]
+    [InlineData("4dF")]
+    [InlineData("dF")]
+    [InlineData("4dF+2")]
+    [InlineData("4df")]
     public void Formule_valide_si_analizzano(string input)
     {
         Assert.True(DiceFormula.TryParse(input, out var formula, out var error), $"{input} → {error}");
@@ -53,6 +61,10 @@ public class DiceFormulaParseTests
     [InlineData("duality: 1d12+1d8")]   // facce diverse
     [InlineData("duality: 2d12 >= 6")]  // la Duality non conta successi
     [InlineData("duality: @Forzad12")]  // dadi-da-statistica, non una coppia fissa
+    [InlineData("4d6kh")]                // manca quanti tenerne
+    [InlineData("4d6k3")]                // manca h/l
+    [InlineData("4d6kh0")]               // almeno uno
+    [InlineData("duality: 2d12kh1")]    // la Duality tiene entrambi
     [InlineData("")]
     [InlineData(null)]
     public void Formule_invalide_falliscono_spiegando_perche(string? input)
@@ -100,6 +112,124 @@ public class DiceFormulaEvaluateTests
         Assert.Equal(12, result.Total);
         Assert.Equal(3, result.Kept.Modifier);
         Assert.Equal([new DieRoll(6, 4), new DieRoll(6, 5)], result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Un_dado_esplosivo_sul_massimo_si_ritira_e_si_somma()
+    {
+        // 3d6!: il primo cade su 6 (massimo) e si ri-tira dando 3; poi 4 e 5.
+        var result = Roll("3d6!", new ScriptedRandom(6, 3, 4, 5));
+
+        Assert.Equal(18, result.Total);   // 6 + 3 + 4 + 5
+        Assert.Equal([new DieRoll(6, 6), new DieRoll(6, 3), new DieRoll(6, 4), new DieRoll(6, 5)], result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Un_dado_esplosivo_sotto_il_massimo_non_esplode()
+    {
+        var result = Roll("1d6!", new ScriptedRandom(4));
+
+        Assert.Equal(4, result.Total);
+        Assert.Single(result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Un_dado_esplosivo_incatena_piu_esplosioni()
+    {
+        // Due massimi di fila prima di fermarsi: 6 + 6 + 2.
+        var result = Roll("1d6!", new ScriptedRandom(6, 6, 2));
+
+        Assert.Equal(14, result.Total);
+        Assert.Equal(3, result.Kept.Dice.Count);
+    }
+
+    [Fact]
+    public void Senza_il_punto_esclamativo_il_massimo_non_esplode()
+    {
+        // Stesso tiro senza '!': il 6 resta un 6 e basta, niente ri-tiro.
+        var result = Roll("1d6", new ScriptedRandom(6));
+
+        Assert.Equal(6, result.Total);
+        Assert.Single(result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Tieni_i_migliori_tre_su_quattro_scarta_il_piu_basso()
+    {
+        // La generazione delle caratteristiche di D&D: 4d6, via il più basso.
+        var result = Roll("4d6kh3", new ScriptedRandom(2, 5, 6, 4));
+
+        Assert.Equal(15, result.Total);   // 5 + 6 + 4, non il 2
+        // Tutti e quattro si vedono; lo scartato è marcato "dropped".
+        Assert.Equal(
+            [new DieRoll(6, 2, "dropped"), new DieRoll(6, 5), new DieRoll(6, 6), new DieRoll(6, 4)],
+            result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Tieni_il_peggiore_e_lo_svantaggio_scritto_in_un_termine()
+    {
+        // 2d20kl1: come lo svantaggio, ma in un solo tiro.
+        var result = Roll("2d20kl1", new ScriptedRandom(17, 4));
+
+        Assert.Equal(4, result.Total);
+        Assert.Equal([new DieRoll(20, 17, "dropped"), new DieRoll(20, 4)], result.Kept.Dice);
+    }
+
+    [Fact]
+    public void A_parita_di_valore_si_scarta_uno_solo_dei_gemelli()
+    {
+        // Due 6 e un 1, tieni i 2 più alti: entrambi i 6 restano, cade l'1.
+        var result = Roll("3d6kh2", new ScriptedRandom(6, 1, 6));
+
+        Assert.Equal(12, result.Total);
+        Assert.Equal(1, result.Kept.Dice.Count(d => d.Role == "dropped"));
+    }
+
+    [Fact]
+    public void Tenerne_piu_di_quanti_ne_cadono_li_tiene_tutti()
+    {
+        var result = Roll("2d6kh5", new ScriptedRandom(3, 4));
+
+        Assert.Equal(7, result.Total);
+        Assert.DoesNotContain(result.Kept.Dice, d => d.Role == "dropped");
+    }
+
+    [Fact]
+    public void Il_modificatore_resta_anche_con_kh()
+    {
+        var result = Roll("4d6kh3+2", new ScriptedRandom(1, 5, 6, 4));
+
+        Assert.Equal(17, result.Total);   // (5+6+4) + 2
+    }
+
+    [Fact]
+    public void Un_dado_Fudge_vale_meno_uno_zero_o_piu_uno()
+    {
+        // rng 1/2/3 → −1/0/+1. Quattro dadi: −1, 0, +1, +1 = +1.
+        var result = Roll("4dF", new ScriptedRandom(1, 2, 3, 3));
+
+        Assert.Equal(1, result.Total);
+        Assert.Equal(
+            [new DieRoll(3, -1, "fudge"), new DieRoll(3, 0, "fudge"),
+             new DieRoll(3, 1, "fudge"), new DieRoll(3, 1, "fudge")],
+            result.Kept.Dice);
+    }
+
+    [Fact]
+    public void Quattro_dadi_Fudge_col_modificatore_e_il_tiro_di_Fate()
+    {
+        // +2 di abilità, tutti e quattro i dadi a +1 → +4 +2 = +6 (il massimo di Fate + mod).
+        var result = Roll("4dF+2", new ScriptedRandom(3, 3, 3, 3));
+
+        Assert.Equal(6, result.Total);
+        Assert.All(result.Kept.Dice, d => Assert.Equal("fudge", d.Role));
+    }
+
+    [Fact]
+    public void Un_dado_Fudge_tutto_a_meno_uno_puo_dare_un_totale_negativo()
+    {
+        Assert.Equal(-4, Roll("4dF", new ScriptedRandom(1, 1, 1, 1)).Total);
     }
 
     [Fact]
@@ -452,6 +582,20 @@ public class DiceFormulaDescribeTests
     [Fact]
     public void La_soglia_dei_successi_resta_leggibile() =>
         Assert.Equal("4d10 ≥6", Descrivi("@Destrezzad10>=6"));
+
+    [Theory]
+    [InlineData("4d6kh3", "4d6kh3")]
+    [InlineData("2d20kl1", "2d20kl1")]
+    [InlineData("4d6kh3+2", "4d6kh3+2")]
+    public void Il_tieni_migliori_resta_leggibile(string formula, string atteso) =>
+        Assert.Equal(atteso, Descrivi(formula));
+
+    [Theory]
+    [InlineData("4dF", "4dF")]
+    [InlineData("4dF+2", "4dF+2")]
+    [InlineData("dF", "1dF")]
+    public void I_dadi_Fudge_restano_leggibili_come_dF(string formula, string atteso) =>
+        Assert.Equal(atteso, Descrivi(formula));
 
     [Fact]
     public void Una_statistica_che_non_esiste_non_inventa_un_numero()

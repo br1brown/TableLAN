@@ -1,4 +1,4 @@
-import { Component, input, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FeatureDto } from '../../models';
@@ -7,77 +7,79 @@ import { FeatureDto } from '../../models';
   selector: 'app-feature-row',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <article class="feature" [class.disabled]="!canUse() && !feature().toggleable" [class.off]="feature().toggleable && !feature().active">
-      
+    <article class="border-bottom py-2"
+             [class.opacity-50]="(!canUse() && !feature().toggleable) || (feature().toggleable && !feature().active)">
+
       @if (editMode()) {
         <!-- Modalità Modifica -->
-        <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: .5rem; padding: .5rem; background: var(--surface-2); border-radius: var(--radius-sm); margin-bottom: .5rem;">
-          <input [(ngModel)]="draftName" placeholder="Nome" style="background: var(--bg); color: var(--text); padding: .4rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">
-          <div style="display: flex; gap: .5rem;">
-            <button class="secondary" (click)="saveEdit()">Salva</button>
-            <button class="ghost" (click)="deleteFeat()" style="color: #dc3545;">Elimina</button>
+        <div class="p-2 bg-body-tertiary rounded mb-2">
+          <input class="form-control form-control-sm mb-2" [(ngModel)]="draftName" placeholder="Nome">
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" (click)="saveEdit()">Salva</button>
+            <button class="btn btn-sm btn-outline-danger" (click)="deleteFeat()">Elimina</button>
           </div>
         </div>
       } @else {
         <!-- Modalità Normale -->
-        <button class="feature-main" (click)="toggle.emit()">
-          <span class="feature-name">
-            {{ feature().shortName }}
-            <span class="feature-from">{{ sourceLabel() }}</span>
-          </span>
-          <span class="feature-meta">
-            @if (feature().costs.length) {
-              <span class="cost"><i class="ra" [class]="iconForFeature()"></i> {{ costLabel() }}</span>
-            }
-            <!-- Cosa ti rende: l'azione di Attacco vale due colpi, Action
-                 Surge ti ridà l'Azione. Senza, costa e basta — e la riga
-                 mentirebbe per omissione. -->
-            @if (grantLabel()) {
-              <span class="grant">{{ grantLabel() }}</span>
-            }
-            @if (feature().usage) {
-              <span class="uses">{{ feature().usage?.remaining }}/{{ feature().usage?.max }}</span>
-            }
-          </span>
-        </button>
-        
-        @if (feature().toggleable) {
-          <button class="toggle" [class.on]="feature().active" (click)="toggleEffect.emit()">
-            {{ feature().active ? 'Indossato' : 'Rimosso' }}
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-link text-start text-decoration-none text-body flex-grow-1 p-0" (click)="toggle.emit()">
+            <div class="fw-medium">
+              {{ feature().shortName }}
+              <small class="text-secondary">{{ sourceLabel() }}</small>
+            </div>
+            <div class="small text-secondary d-flex flex-wrap gap-2">
+              @if (feature().costs.length) {
+                <span><i class="ra" [class]="iconForFeature()"></i> {{ costLabel() }}</span>
+              }
+              <!-- Cosa ti rende: l'azione di Attacco vale due colpi, Action
+                   Surge ti ridà l'Azione. Senza, la riga mentirebbe per omissione. -->
+              @if (grantLabel()) {
+                <span class="text-success">{{ grantLabel() }}</span>
+              }
+              @if (feature().usage) {
+                <span class="font-monospace">{{ feature().usage?.remaining }}/{{ feature().usage?.max }}</span>
+              }
+            </div>
           </button>
-        } @else if (feature().roll) {
-          <!-- Sul bottone il conto già fatto ("1d20+6"); la formula com'è
-               scritta resta nel title, per chi vuole controllarla. -->
-          <button class="roll" [disabled]="!canUse()" (click)="roll.emit()" [title]="'Tira ' + feature().roll">
-            <i class="ra ra-perspective-dice-six"></i> {{ feature().rollLabel ?? feature().roll }}
-          </button>
-        } @else if (feature().costs.length || feature().usage) {
-          <button class="use" [disabled]="!canUse()" (click)="use.emit()">Usa</button>
-        }
-        
+
+          @if (feature().toggleable) {
+            <button class="btn btn-sm flex-shrink-0"
+                    [class.btn-success]="feature().active" [class.btn-outline-secondary]="!feature().active"
+                    (click)="toggleEffect.emit()">
+              {{ feature().active ? 'Indossato' : 'Rimosso' }}
+            </button>
+          } @else if (feature().roll) {
+            <!-- Sul bottone il conto già fatto ("1d20+6"); la formula nel title. -->
+            <button class="btn btn-sm btn-outline-warning font-monospace flex-shrink-0"
+                    [disabled]="!canUse()" (click)="roll.emit()" [title]="'Tira ' + feature().roll">
+              <i class="ra ra-perspective-dice-six"></i> {{ feature().rollLabel ?? feature().roll }}
+            </button>
+          } @else if (feature().costs.length || feature().usage) {
+            <button class="btn btn-sm btn-primary flex-shrink-0" [disabled]="!canUse()" (click)="use.emit()">Usa</button>
+          }
+        </div>
+
         @if (feature().effects.length) {
-          <div class="effects">
+          <div class="d-flex flex-wrap gap-1 mt-1">
             @for (e of feature().effects; track $index) {
-              <span class="eff">{{ effectLabel()(e) }}</span>
+              <span class="badge text-bg-dark border fw-normal">{{ effectLabel()(e) }}</span>
             }
           </div>
         }
-        
+
         @if (!feature().toggleable && feature().blockedReason) {
-          <p class="blocked">{{ feature().blockedReason }}</p>
+          <p class="small text-danger mb-0 mt-1">{{ feature().blockedReason }}</p>
         }
 
-        <!-- Non è un blocco: usarla si può, ma qualcosa cade. Detto prima di
-             toccare il bottone, non dopo aver speso lo slot. -->
+        <!-- Non è un blocco: usarla si può, ma qualcosa cade. Detto prima del tap. -->
         @if (feature().wouldReplace; as caduta) {
-          <p class="replaces">Chiuderebbe: {{ caduta }}</p>
+          <p class="small text-warning mb-0 mt-1">Chiuderebbe: {{ caduta }}</p>
         }
-        
+
         @if (expanded()) {
-          <p class="description">
-            {{ description() || 'Caricamento…' }}
-          </p>
+          <p class="small text-secondary mt-1 mb-0">{{ description() || 'Caricamento…' }}</p>
         }
       }
     </article>

@@ -1,0 +1,238 @@
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="mb-0">Sessione Attiva</h2>
+  <button class="btn btn-outline-secondary" (click)="showQr.set(true)">
+    <i class="ra ra-perspective-dice-six"></i> Mostra QR Invito
+  </button>
+</div>
+
+<!-- ---- Al tavolo: a tutta larghezza, le schede riempiono la riga ---- -->
+<section class="mb-4">
+  <h3 class="h5"><i class="ra ra-heart-tower text-warning"></i> Al tavolo</h3>
+
+  <div class="input-group input-group-sm mb-3">
+    <span class="input-group-text">Nuovo</span>
+    <input class="form-control" placeholder="Nome giocatore" [ngModel]="newName()" (ngModelChange)="newName.set($event)" (keyup.enter)="addPlayer()">
+    <span class="input-group-text">PF</span>
+    <input class="form-control flex-grow-0 w-auto" type="number" min="1" [(ngModel)]="newHp" aria-label="PF massimi">
+    <button class="btn btn-outline-secondary" (click)="addPlayer()">+ Aggiungi</button>
+  </div>
+
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-2">
+    @for (c of characters(); track c.id) {
+      <div class="col">
+        <div class="card h-100">
+          <div class="card-body p-2">
+            <div class="d-flex justify-content-between align-items-baseline mb-1 gap-2">
+              <a class="fw-semibold text-decoration-none text-truncate" [routerLink]="['/edit', c.id]">{{ c.name }}</a>
+              <span class="small font-monospace text-secondary text-nowrap">PF {{ c.hp.current }}/{{ c.hp.max }}@if (c.hp.temp) { <span class="text-info">+{{ c.hp.temp }}</span> }</span>
+            </div>
+            <div class="progress mb-2" role="progressbar" [attr.aria-valuenow]="hpPercent(c)">
+              <div class="progress-bar bg-danger" [style.width.%]="hpPercent(c)"></div>
+            </div>
+            <div class="input-group input-group-sm mb-2">
+              <input class="form-control" type="number" min="1"
+                     [ngModel]="hpAmt[c.id] ?? 1" (ngModelChange)="hpAmt[c.id] = $event" aria-label="Quantità">
+              <button class="btn btn-outline-danger" (click)="changeHp(c.id, -1)">Danno</button>
+              <button class="btn btn-outline-success" (click)="changeHp(c.id, 1)">Cura</button>
+            </div>
+            @if (poolChips(c).length) {
+              <div class="d-flex flex-wrap gap-1">
+                @for (chip of poolChips(c); track chip.text) {
+                  <span class="badge rounded-pill"
+                        [class.text-bg-info]="!chip.empty"
+                        [class.text-bg-secondary]="chip.empty"
+                        [class.text-decoration-line-through]="chip.empty">{{ chip.text }}</span>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    } @empty {
+      <div class="col"><p class="text-secondary">Nessun personaggio.</p></div>
+    }
+  </div>
+</section>
+
+<!-- ---- Iniziativa + Tiri affiancati su schermi larghi ---- -->
+<div class="row g-4">
+  <div class="col-12 col-lg-8">
+    <section class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <span><i class="ra ra-swords text-warning"></i> Iniziativa</span>
+        @if (round() > 0) { <span class="badge rounded-pill text-bg-secondary ms-auto">Round {{ round() }}</span> }
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-column gap-2 mb-3">
+          <div class="row g-2 align-items-center">
+            <div class="col-auto"><i class="ra ra-player text-secondary"></i></div>
+            <div class="col">
+              <select class="form-select form-select-sm" [ngModel]="initPcId()" (ngModelChange)="initPcId.set($event)" aria-label="Giocatore da aggiungere">
+                <option value="">Giocatore…</option>
+                @for (c of freePcs(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+              </select>
+            </div>
+            <div class="col-3 col-sm-2">
+              <input class="form-control form-control-sm" type="number" inputmode="numeric"
+                     placeholder="—" [ngModel]="initPcNum()" (ngModelChange)="initPcNum.set($event)" aria-label="Iniziativa del giocatore">
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-outline-secondary" (click)="addInitiative('pc')"
+                      [disabled]="!freePcs().length">Aggiungi</button>
+            </div>
+          </div>
+          <div class="row g-2 align-items-center">
+            <div class="col-auto"><i class="ra ra-monster-skull text-secondary"></i></div>
+            <div class="col">
+              <select class="form-select form-select-sm" [ngModel]="initNpcId()" (ngModelChange)="initNpcId.set($event)" aria-label="Bestia da aggiungere">
+                <option value="">{{ monsters().length ? 'Bestia…' : 'Bestiario vuoto' }}</option>
+                @for (m of freeMonsters(); track m.id) { <option [value]="m.id">{{ m.name }}</option> }
+              </select>
+            </div>
+            <div class="col-3 col-sm-2">
+              <input class="form-control form-control-sm" type="number" inputmode="numeric"
+                     placeholder="—" [ngModel]="initNpcNum()" (ngModelChange)="initNpcNum.set($event)" aria-label="Iniziativa della bestia">
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-outline-secondary" (click)="addInitiative('monster')"
+                      [disabled]="!freeMonsters().length">Aggiungi</button>
+            </div>
+          </div>
+        </div>
+
+        @if (order().length) {
+          <ul class="list-group mb-3">
+            @for (e of order(); track e.refId) {
+              <li class="list-group-item"
+                  [class.border-warning]="activeId() === e.refId"
+                  [class.border-2]="activeId() === e.refId">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="fw-bold font-monospace text-end"
+                        [class.text-warning]="e.kind !== 'monster'"
+                        [class.text-danger]="e.kind === 'monster'">{{ e.initiative }}</span>
+                  <span class="flex-grow-1">
+                    @if (activeId() === e.refId) { <span class="text-warning">▶</span> }
+                    <strong>{{ e.name }}</strong>
+                  </span>
+                  <button class="btn btn-sm btn-outline-secondary border-0 py-0"
+                          (click)="openCond(e.refId)" [class.active]="addingCond() === e.refId"
+                          title="Aggiungi uno stato">+ stato</button>
+                  <button class="btn btn-sm btn-outline-secondary border-0"
+                          (click)="removeInitiative(e.refId)" title="Togli dall'iniziativa">✕</button>
+                </div>
+
+                <!-- Stati attivi: etichetta, round che restano, e la ✕ per toglierlo -->
+                @if (condFor(e.refId).length || addingCond() === e.refId) {
+                  <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+                    @for (c of condFor(e.refId); track c.id) {
+                      <span class="badge rounded-pill text-bg-dark border">
+                        {{ c.label }}@if (c.rounds != null) { <span class="text-secondary ms-1">{{ c.rounds }}r</span> }
+                        <button class="btn-close btn-close-white ms-1 align-middle" style="font-size:.55rem"
+                                (click)="removeCond(e.refId, c.id)" [attr.aria-label]="'Togli ' + c.label"></button>
+                      </span>
+                    }
+                    @if (addingCond() === e.refId) {
+                      <span class="input-group input-group-sm flex-nowrap" style="width:auto">
+                        <input class="form-control form-control-sm" style="max-width:9rem" [(ngModel)]="condLabel"
+                               placeholder="altro…" (keyup.enter)="saveCond(e.refId)" aria-label="Stato">
+                        <input class="form-control form-control-sm" style="max-width:4.5rem" type="number" min="1"
+                               [(ngModel)]="condRounds" placeholder="round" aria-label="Round">
+                        <button class="btn btn-outline-secondary" (click)="saveCond(e.refId)">OK</button>
+                      </span>
+                    }
+                  </div>
+                  <!-- Scelta rapida dal vocabolario del sistema (D&D, CoC, Savage…). -->
+                  @if (addingCond() === e.refId && conditionPresets().length) {
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                      @for (s of conditionPresets(); track s) {
+                        <button class="btn btn-sm btn-outline-info border-0 py-0 px-2" style="font-size:.75rem"
+                                (click)="addPreset(e.refId, s)">{{ s }}</button>
+                      }
+                    </div>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-secondary">Nessuno nell'iniziativa.</p>
+        }
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary flex-grow-1" (click)="nextTurn()">
+            <i class="ra ra-cycle"></i> Prossimo Turno
+          </button>
+          <button class="btn btn-outline-danger" (click)="clearInitiative()">Pulisci</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="col-12 col-lg-4">
+    <section class="card">
+      <div class="card-header"><i class="ra ra-perspective-dice-six text-warning"></i> Tiri</div>
+      <div class="card-body">
+        <!-- Il vassoio del Master: i dadi del sistema, il tiro va al tavolo sotto "Master". -->
+        <app-dice-roller [roller]="rollMaster" [dice]="profile()?.dice" class="d-block mb-3"></app-dice-roller>
+
+        @for (roll of rollLog(); track roll.id) {
+          <div class="border-top py-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-semibold">{{ roll.characterName }}</div>
+                <div class="small text-secondary">
+                  {{ roll.label }}
+                  @if (roll.outcome) {
+                    <span class="badge rounded-pill ms-1"
+                          [class.text-bg-warning]="roll.outcome === 'hope' || roll.outcome === 'crit'"
+                          [class.text-bg-danger]="roll.outcome === 'fear'">{{ outcomeLabel(roll.outcome) }}</span>
+                  }
+                  @if (!roll.spent) { <span class="text-secondary">(free)</span> }
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-sm btn-outline-secondary border-0 py-0" title="Ri-tira questa formula"
+                        (click)="reroll(roll)">↻</button>
+                <span class="fs-4 fw-bold text-warning font-monospace">{{ roll.total }}</span>
+              </div>
+            </div>
+            <div class="small text-secondary font-monospace mt-1">
+              {{ roll.formula }} →
+              @for (d of kept(roll).dice; track $index) {
+                <span [class.text-warning]="d.role === 'hope'"
+                      [class.text-danger]="d.role === 'fear'"
+                      [class.text-info]="d.role === 'fudge'"
+                      [class.text-decoration-line-through]="d.role === 'dropped'"
+                      [class.opacity-50]="d.role === 'dropped'">{{ dieText(d) }}</span>
+              }
+              @if (kept(roll).modifier) {
+                {{ kept(roll).modifier > 0 ? '+' : '−' }} {{ kept(roll).modifier < 0 ? -kept(roll).modifier : kept(roll).modifier }}
+              }
+              @if (discarded(roll)) { · scartato {{ discarded(roll) }} }
+            </div>
+          </div>
+        } @empty {
+          <p class="text-secondary mb-0">Nessun tiro ancora.</p>
+        }
+      </div>
+    </section>
+  </aside>
+</div>
+
+<!-- ---- QR di invito (modal Bootstrap) ---- -->
+@if (showQr()) {
+  <div class="modal d-block" tabindex="-1" (click)="showQr.set(false)">
+    <div class="modal-dialog modal-dialog-centered" (click)="$event.stopPropagation()">
+      <div class="modal-content">
+        <div class="modal-body text-center">
+          <img src="/api/admin/qr.png" alt="QR per unirsi" class="img-fluid bg-white p-2 rounded mb-3">
+          <p class="text-secondary small mb-3">
+            I giocatori possono inquadrare questo QR per unirsi alla partita.
+          </p>
+          <button class="btn btn-outline-secondary" (click)="showQr.set(false)">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop show"></div>
+}

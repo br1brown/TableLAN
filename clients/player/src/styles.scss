@@ -6,7 +6,12 @@
  * Tema "flavor fantasy, ossa funzionali": superfici scure calde (pergamena/
  * cuoio), serif Cinzel per i titoli, icone RPG — ma contrasti e leggibilità
  * intatti, come chiede il master.
+ *
+ * Bootstrap (ri-tematizzato coi colori TableLAN) è importato per primo: le
+ * regole bespoke qui sotto vengono dopo e vincono dove si sovrappongono — per
+ * esempio la texture cuoio sul body.
  */
+@import './bootstrap-theme';
 
 /* Font bundlati in locale (nessun CDN a runtime). */
 @font-face {
@@ -107,25 +112,6 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: .02em; }
 /* Icone RPG: ereditano colore e si allineano al testo. */
 .ra { vertical-align: -.05em; }
 
-/* Comportamento condiviso dei controlli: feedback coerente su tutti i
-   bottoni dell'app, senza ripeterlo in ogni regola. */
-button {
-  font-family: inherit;
-  transition: filter var(--tap), background var(--tap), transform var(--tap);
-}
-button:not(:disabled):hover { filter: brightness(1.12); }
-button:not(:disabled):active { transform: translateY(1px); }
-button:disabled { cursor: not-allowed; }
-
-input,
-select {
-  font-family: inherit;
-  transition: border-color var(--tap);
-}
-input:focus,
-select:focus { border-color: var(--accent); }
-
-/* Contorno di focus visibile solo da tastiera: accessibilità senza
-   sporcare il click col mouse/tocco. */
-:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-:focus:not(:focus-visible) { outline: none; }
+/* Il resto (bottoni, input, focus, superfici, spaziature) lo dà Bootstrap:
+   qui restano solo i colori e il "flavour" del brand — texture cuoio, oro,
+   vino, il serif Cinzel sui titoli. */

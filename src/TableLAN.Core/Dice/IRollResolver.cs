@@ -6,8 +6,18 @@ namespace TableLAN.Core.Dice;
 /// non porta il segno («il segno vive nel totale, non nella faccia») — perché
 /// qui il segno serve: la somma ne ha bisogno, il conteggio dei successi conta
 /// solo i dadi a segno positivo.
+/// <para>
+/// <see cref="Dropped"/> è il dado che «kh/kl» ha scartato: caduto e mostrato,
+/// ma fuori dal totale (e dal conteggio dei successi). Il resolver lo salta ma
+/// lo tiene visibile, sbarrato.
+/// </para>
+/// <para>
+/// <see cref="Fudge"/> è un dado di Fate: il suo <see cref="Value"/> è −1/0/+1 e
+/// si mostra come segno, non come «dN:valore». Il resolver lo somma come ogni
+/// altro dado; solo il render lo disegna diverso.
+/// </para>
 /// </summary>
-public readonly record struct RolledDie(int Sides, int Value, int Sign);
+public readonly record struct RolledDie(int Sides, int Value, int Sign, bool Dropped = false, bool Fudge = false);
 
 /// <summary>
 /// Ciò che la risoluzione produce: i dadi da mostrare (con l'eventuale ruolo

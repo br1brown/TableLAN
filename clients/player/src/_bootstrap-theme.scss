@@ -1,0 +1,27 @@
+// Bootstrap, compilato nel bundle (nessun CDN a runtime), "moddato" con i
+// colori di TableLAN: l'accento è il rosso vino del Master, il secondario
+// l'oro. Il resto resta Bootstrap standard — è la scelta di tenere poco CSS
+// custom e appoggiarsi a griglia/utility/componenti della libreria.
+//
+// Le variabili sono definite PRIMA dell'import: le variabili di Bootstrap sono
+// `!default`, quindi questi valori vincono. La UI gira in dark
+// (`data-bs-theme="dark"` sull'<html>): le superfici scure le dà Bootstrap,
+// noi tocchiamo solo i colori del brand.
+
+$primary: #8b1e3f; // rosso vino del Master
+$secondary: #c9a53a; // oro
+$success: #8ab370;
+$info: #7fb3d5;
+$danger: #a63d40;
+
+// Font: il corpo resta il sans di sistema, i titoli il serif fantasy Cinzel
+// (caricato in locale in styles.scss). Bootstrap prende questi come base.
+$font-family-sans-serif: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+$headings-font-family: 'Cinzel', Georgia, serif;
+
+// Forme un filo più morbide, coerenti coi token precedenti.
+$border-radius: 0.5rem;
+$border-radius-sm: 0.375rem;
+$border-radius-lg: 0.75rem;
+
+@import 'bootstrap/scss/bootstrap';

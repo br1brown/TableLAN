@@ -53,6 +53,34 @@ public sealed record RollRequest(
             : TableLAN.Core.Dice.Keep.Sum;
 }
 
+/// <summary>
+/// Un tiro libero: una formula qualunque ("2d6+3", "1d20"), senza feature né
+/// costo. Il Master la usa per i tiri che nessuna scheda prevede; il giocatore
+/// per i tiri contestuali, quelli fuori dal manuale che capitano al tavolo.
+///
+/// <paramref name="Label"/> è l'etichetta nel log (nullo ⇒ un default). Times e
+/// Keep valgono come in <see cref="RollRequest"/>: due dadi tenendo il migliore
+/// è un tiro con vantaggio anche qui.
+/// </summary>
+public sealed record FreeRollRequest(
+    string? Formula,
+    string? Label = null,
+    int Times = 1,
+    string Keep = "Sum")
+{
+    /// <summary>Sum | Highest (vantaggio) | Lowest (svantaggio). Ignoto ⇒ Sum.</summary>
+    public TableLAN.Core.Dice.Keep KeepMode =>
+        Enum.TryParse<TableLAN.Core.Dice.Keep>(Keep, ignoreCase: true, out var mode)
+            ? mode
+            : TableLAN.Core.Dice.Keep.Sum;
+}
+
+/// <summary>Uno stato da mettere su una creatura: etichetta e durata opzionale in round.</summary>
+public sealed record ConditionRequest(string? Label, int? Rounds = null);
+
+/// <summary>Il nuovo valore dei PF temporanei (il cuscinetto anti-danno).</summary>
+public sealed record TempHpRequest(int Value);
+
 /// <summary>Una nuova scheda, o il rinomino di una esistente.</summary>
 public sealed record NewCharacterRequest(string? Name, int MaxHp = 10);
 

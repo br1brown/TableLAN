@@ -1,0 +1,64 @@
+<h2 class="mb-1"><i class="ra ra-pawn text-warning"></i> Schede</h2>
+<p class="text-secondary">Apri una scheda per modificarla. Un mostro è un personaggio: stessa scheda.</p>
+
+<h3 class="h5 mt-4">Al tavolo</h3>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-2">
+  @for (c of characters(); track c.id) {
+    <div class="col">
+      <a class="card h-100 text-decoration-none border-start border-warning border-3"
+         [routerLink]="['/edit', c.id]">
+        <div class="card-body p-2">
+          <div class="fw-semibold">{{ c.name }}</div>
+          <div class="small text-secondary font-monospace">{{ meta(c) }}</div>
+        </div>
+      </a>
+    </div>
+  } @empty {
+    <div class="col"><p class="text-secondary">Nessuna scheda. Aggiungine una da Sessione.</p></div>
+  }
+</div>
+
+<h3 class="h5 mt-4">Bestiario</h3>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-2">
+  @for (m of monsters(); track m.id) {
+    <div class="col">
+      <a class="card h-100 text-decoration-none border-start border-danger border-3"
+         [routerLink]="['/edit', m.id]">
+        <div class="card-body p-2">
+          <div class="fw-semibold">{{ m.name }}</div>
+          <div class="small text-secondary font-monospace">{{ meta(m) }}</div>
+        </div>
+      </a>
+    </div>
+  } @empty {
+    <div class="col"><p class="text-secondary">Nessun mostro. Aggiungine uno dal Bestiario.</p></div>
+  }
+</div>
+
+<!-- Import da D&D Beyond: il file non esce di qui, la rotta risponde solo su loopback. -->
+<section class="card border-secondary mt-4">
+  <div class="card-body">
+    <h3 class="h5"><i class="ra ra-scroll-unfurled"></i> Importa da D&amp;D Beyond</h3>
+    <p class="text-secondary small mb-0">
+      Su D&amp;D Beyond: scheda del personaggio → <em>Manage</em> → <em>Print</em> → <em>Export to PDF</em>.
+      Da qui entrano caratteristiche, PF, armi con attacco e danni, incantesimi coi loro slot e i tratti.
+      Serve il PDF <strong>della scheda compilata</strong>, non il foglio vuoto da stampare.
+      Il file viene letto e basta: non resta da nessuna parte.
+    </p>
+    <div class="row g-2 mt-2">
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="input-group">
+          <input #pdf class="form-control" type="file" accept="application/pdf,.pdf">
+          <button class="btn btn-primary" [disabled]="importing()" (click)="importPdf(pdf)">Importa</button>
+        </div>
+      </div>
+    </div>
+    @if (importState(); as st) {
+      <div class="mt-2 small"
+           [class.text-warning]="st.tone === 'ok'"
+           [class.text-danger]="st.tone === 'ko'"
+           [class.text-secondary]="st.tone === 'busy'"
+           [innerHTML]="st.html"></div>
+    }
+  </div>
+</section>

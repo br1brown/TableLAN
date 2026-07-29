@@ -1,0 +1,301 @@
+<!-- ---- Campagna: qui, fra le impostazioni, non in cima alla Sessione ---- -->
+<div class="card mb-4">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="ra ra-book text-warning"></i> Campagna: <strong>{{ currentCampaign() }}</strong>
+  </div>
+  <div class="card-body">
+    <p class="text-secondary small">
+      Ogni campagna è un file <code>.db</code> a sé, con le sue schede e il suo
+      profilo di sistema (quello qui sotto). Cambiarla apre l'altra a caldo;
+      nessun dato si perde — resta nel suo file.
+    </p>
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1">Passa a una campagna esistente</label>
+        <div class="input-group input-group-sm">
+          <select class="form-select" [ngModel]="switchTo()" (ngModelChange)="switchTo.set($event)" aria-label="Campagna esistente">
+            <option value="">{{ otherCampaigns().length ? 'Scegli…' : "Nessun'altra campagna" }}</option>
+            @for (c of otherCampaigns(); track c.name) { <option [value]="c.name">{{ c.name }}</option> }
+          </select>
+          <button class="btn btn-outline-secondary" (click)="switchCampaign()" [disabled]="!switchTo()">Cambia</button>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1">Nuova campagna</label>
+        <div class="input-group input-group-sm">
+          <input class="form-control" [ngModel]="newCampaignName()" (ngModelChange)="newCampaignName.set($event)" placeholder="es. Le Cronache di Drakkenheim"
+                 (keyup.enter)="createCampaign()">
+          <button class="btn btn-outline-secondary" (click)="createCampaign()">Crea</button>
+        </div>
+      </div>
+    </div>
+    @if (campaignMsg()) { <div class="text-danger small mt-2">{{ campaignMsg() }}</div> }
+  </div>
+</div>
+
+<h2 class="mb-1"><i class="ra ra-book text-warning"></i> Profilo di sistema</h2>
+<p class="text-secondary mb-1">
+  Turno, riserve e cicli di riposo. Il default è D&amp;D 5e; da qui si adatta
+  ad altri sistemi, senza programmare.
+</p>
+<p class="text-secondary border-start border-2 border-danger ps-2">
+  Cambia le regole per <em>tutti</em> i giocatori insieme. Una feature il cui
+  costo il nuovo sistema non prevede resta sulla scheda ma non si attiva, finché
+  non la rimappi da Schede.
+</p>
+
+<!-- Toolbar: preset, import, nome — su una riga che si impila sul telefono. -->
+<div class="row g-2 align-items-end mb-4">
+  <div class="col-12 col-md-auto">
+    <label class="form-label small mb-1">Parti da un preset</label>
+    <div class="input-group input-group-sm">
+      <select class="form-select" [(ngModel)]="presetIndex" aria-label="Preset">
+        @for (p of presets(); track $index) { <option [value]="$index">{{ p.name }}</option> }
+      </select>
+      <button class="btn btn-outline-secondary" (click)="loadPreset()">Carica</button>
+    </div>
+  </div>
+  <div class="col-12 col-md-auto">
+    <button class="btn btn-sm btn-outline-secondary" (click)="jsonInput.click()">Importa da file…</button>
+    <input #jsonInput type="file" accept=".json,application/json" hidden (change)="importFile(jsonInput)">
+  </div>
+  <div class="col">
+    <label class="form-label small mb-1">Nome del sistema</label>
+    <input class="form-control form-control-sm" [(ngModel)]="form.name" placeholder="es. La mia campagna">
+  </div>
+</div>
+
+<!-- ---- Statistiche: a tutta larghezza (le righe hanno molti campi) ---- -->
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><strong>Statistiche</strong> <span class="text-secondary small">— citate nelle formule con <code>&#64;Nome</code>; il tiro è facoltativo</span></span>
+    <button class="btn btn-sm btn-outline-secondary" (click)="addStat()">+ Statistica</button>
+  </div>
+  <div class="card-body py-1">
+    @for (s of form.stats; track s.id) {
+      <div class="row g-2 align-items-center py-2 border-bottom">
+        <div class="col-12 col-xl">
+          <input class="form-control form-control-sm" [(ngModel)]="s.label" placeholder="Nome (es. Forza, Umanità)">
+        </div>
+        <div class="col-6 col-sm-3 col-xl-2">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">base</span>
+            <input class="form-control" type="number" [(ngModel)]="s.default">
+          </div>
+        </div>
+        <div class="col-6 col-sm-4 col-xl-2">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">tiro</span>
+            <input class="form-control font-monospace" [(ngModel)]="s.roll" placeholder="non si tira">
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" [id]="'mod-' + s.id"
+                   [checked]="!!s.modifier" (change)="toggleModifier(s, $any($event.target).checked)">
+            <label class="form-check-label small" [attr.for]="'mod-' + s.id">modificatore</label>
+          </div>
+        </div>
+        @if (s.modifier) {
+          <div class="col-6 col-sm-3 col-xl-2">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">da</span>
+              <input class="form-control" type="number" [(ngModel)]="s.modifier.base">
+            </div>
+          </div>
+          <div class="col-6 col-sm-3 col-xl-2">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">ogni</span>
+              <input class="form-control" type="number" min="1" [(ngModel)]="s.modifier.div">
+            </div>
+          </div>
+          <div class="col-auto">
+            <span class="badge text-bg-secondary font-monospace">{{ esempioMod(s) }}</span>
+          </div>
+        }
+        <div class="col-auto ms-auto">
+          <button class="btn btn-sm btn-outline-secondary border-0" title="Rimuovi"
+                  (click)="del('stats', $index)">✕</button>
+        </div>
+      </div>
+    } @empty {
+      <p class="text-secondary my-2">Nessuna statistica.</p>
+    }
+  </div>
+</div>
+
+<!-- ---- Dadi sul tavolo: il vassoio di tiri rapidi, uguale per tutti ---- -->
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><strong>Dadi sul tavolo</strong> <span class="text-secondary small">— i tiri rapidi del vassoio, uguali per ogni giocatore; vuoto ⇒ i poliedrici standard</span></span>
+    <button class="btn btn-sm btn-outline-secondary" (click)="addDie()">+ Dado</button>
+  </div>
+  <div class="card-body py-1">
+    @for (d of form.dice; track $index) {
+      <div class="row g-2 align-items-center py-2 border-bottom">
+        <div class="col-6 col-sm-4">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">nome</span>
+            <input class="form-control" [(ngModel)]="d.label" placeholder="es. d20 (facolt.)">
+          </div>
+        </div>
+        <div class="col">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">tiro</span>
+            <input class="form-control font-monospace" [(ngModel)]="d.formula" placeholder="es. 1d20, 2d6+3, 5d10 >= 6">
+          </div>
+        </div>
+        <div class="col-auto ms-auto">
+          <button class="btn btn-sm btn-outline-secondary border-0" title="Rimuovi"
+                  (click)="del('dice', $index)">✕</button>
+        </div>
+      </div>
+    } @empty {
+      <p class="text-secondary my-2">Nessun dado configurato: al tavolo compaiono i poliedrici standard (d4…d100).</p>
+    }
+  </div>
+</div>
+
+<!-- ---- Stati del sistema: il vocabolario del «+ stato» in Sessione ---- -->
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><strong>Stati del sistema</strong> <span class="text-secondary small">— quali stati questo gioco conosce (Avvelenato, Scosso, Frenesia…); li pesca il «+ stato» in Sessione</span></span>
+    <button class="btn btn-sm btn-outline-secondary" (click)="addConditionRow()">+ Stato</button>
+  </div>
+  <div class="card-body py-2">
+    @if (form.conditions.length) {
+      <div class="row g-2">
+        @for (c of form.conditions; track $index) {
+          <div class="col-12 col-sm-6 col-lg-4">
+            <div class="input-group input-group-sm">
+              <input class="form-control" [ngModel]="c" (ngModelChange)="form.conditions[$index] = $event"
+                     placeholder="es. Avvelenato">
+              <button class="btn btn-outline-secondary border" title="Rimuovi" (click)="delCondition($index)">✕</button>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="text-secondary my-1">Nessuno stato: in Sessione resta solo il campo libero.</p>
+    }
+  </div>
+</div>
+
+<!-- ---- Riserve, Turno, Cicli: tre colonne su schermi larghi, impilate sotto ---- -->
+<div class="row g-3">
+  <div class="col-12 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Riserve</strong>
+        <button class="btn btn-sm btn-outline-secondary" (click)="addPool()">+ Riserva</button>
+      </div>
+      <div class="card-body py-1">
+        <p class="text-secondary small mb-1">Ciò che si spende: slot, ki, mana.</p>
+        @for (p of form.pools; track p.id) {
+          <div class="py-2 border-bottom">
+            <input class="form-control form-control-sm mb-1" [(ngModel)]="p.label" placeholder="Nome (es. Slot, Ki)">
+            <div class="row g-1 align-items-center">
+              <div class="col-auto">
+                <select class="form-select form-select-sm w-auto" [(ngModel)]="p.kind">
+                  <option value="Leveled">a livelli</option>
+                  <option value="Points">a punti</option>
+                </select>
+              </div>
+              <div class="col">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">ricarica</span>
+                  <select class="form-select" [(ngModel)]="p.rechargeCycle">
+                    <option value="">—</option>
+                    @for (c of form.cycles; track c.id) { <option [value]="c.id">{{ c.label || c.id }}</option> }
+                  </select>
+                </div>
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-sm btn-outline-secondary border-0" title="Rimuovi"
+                        (click)="del('pools', $index)">✕</button>
+              </div>
+            </div>
+          </div>
+        } @empty {
+          <p class="text-secondary my-2">Nessuna riserva.</p>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Economia del turno</strong>
+        <button class="btn btn-sm btn-outline-secondary" (click)="addTurn()">+ Risorsa</button>
+      </div>
+      <div class="card-body py-1">
+        @for (t of form.turnResources; track t.id) {
+          <div class="row g-2 align-items-center py-2 border-bottom">
+            <div class="col">
+              <input class="form-control form-control-sm" [(ngModel)]="t.label" placeholder="Nome (es. Azione)">
+            </div>
+            <div class="col-5 col-sm-4">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">/turno</span>
+                <input class="form-control" type="number" min="0" [(ngModel)]="t.perTurn">
+              </div>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-outline-secondary border-0" title="Rimuovi"
+                      (click)="del('turnResources', $index)">✕</button>
+            </div>
+          </div>
+        } @empty {
+          <p class="text-secondary my-2">Nessuna risorsa di turno.</p>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Cicli di riposo</strong>
+        <button class="btn btn-sm btn-outline-secondary" (click)="addCycle()">+ Ciclo</button>
+      </div>
+      <div class="card-body py-1">
+        @for (c of form.cycles; track c.id) {
+          <div class="row g-2 align-items-center py-2 border-bottom">
+            <div class="col-12 col-sm">
+              <input class="form-control form-control-sm" [(ngModel)]="c.label" placeholder="Nome (es. Riposo lungo)">
+            </div>
+            <div class="col-5 col-sm-auto">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">rango</span>
+                <input class="form-control" type="number" min="1" [(ngModel)]="c.rank">
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="form-check mb-0 text-nowrap" title="Ricarica a ogni turno">
+                <input class="form-check-input" type="checkbox" [id]="'cy-' + c.id" [(ngModel)]="c.perTurn">
+                <label class="form-check-label small" [attr.for]="'cy-' + c.id">a turno</label>
+              </div>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-outline-secondary border-0" title="Rimuovi"
+                      (click)="del('cycles', $index)">✕</button>
+            </div>
+          </div>
+        } @empty {
+          <p class="text-secondary my-2">Nessun ciclo.</p>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ---- Barra Salva sempre a portata, ancorata in basso ---- -->
+<div class="position-sticky bottom-0 bg-body border-top mt-3 py-2 d-flex flex-wrap align-items-center gap-2">
+  <button class="btn btn-primary" (click)="save()">Salva profilo</button>
+  <button class="btn btn-outline-secondary" (click)="showJson = !showJson">JSON avanzato</button>
+  <span class="text-secondary small">{{ msg() }}</span>
+</div>
+@if (showJson) {
+  <textarea class="form-control font-monospace small mt-2" rows="12" readonly spellcheck="false">{{ profileJson() }}</textarea>
+}

@@ -30,6 +30,13 @@ public class Character
 
     public int CurrentHp { get; set; }
 
+    /// <summary>
+    /// PF temporanei: un cuscinetto che il danno consuma per primo e la cura non
+    /// tocca. Non si sommano ai massimi — vivono a parte, ed è per questo che
+    /// sono "temporanei". Zero = nessuno.
+    /// </summary>
+    public int TempHp { get; set; }
+
     /// <summary>Statistiche dinamiche homebrew (es. "Sanità Mentale"), valori base.</summary>
     public IDictionary<string, object?> CustomStats { get; init; } =
         new Dictionary<string, object?>();
@@ -114,8 +121,24 @@ public class Character
             feature.Usage?.RestoreForNewTurn(profile);
     }
 
-    /// <summary>Danno o cura: i PF restano nell'intervallo [0, PF massimi effettivi].</summary>
-    public void AdjustHp(int delta) => CurrentHp = Math.Clamp(CurrentHp + delta, 0, EffectiveMaxHp());
+    /// <summary>
+    /// Danno o cura. Il danno consuma prima i PF temporanei, poi quelli veri; la
+    /// cura va solo sui veri e non ricostruisce il cuscinetto. I PF restano in
+    /// [0, PF massimi effettivi]; i temporanei non scendono sotto zero.
+    /// </summary>
+    public void AdjustHp(int delta)
+    {
+        if (delta < 0 && TempHp > 0)
+        {
+            var absorbed = Math.Min(TempHp, -delta);
+            TempHp -= absorbed;
+            delta += absorbed;   // il resto del danno passa ai PF veri
+        }
+        CurrentHp = Math.Clamp(CurrentHp + delta, 0, EffectiveMaxHp());
+    }
+
+    /// <summary>Imposta il cuscinetto di PF temporanei (mai sotto zero).</summary>
+    public void SetTempHp(int value) => TempHp = Math.Max(0, value);
 
     /// <summary>Una feature con effetti è attiva se non è toggleable o se è accesa.</summary>
     public bool IsEffectFeatureActive(Feature feature) =>

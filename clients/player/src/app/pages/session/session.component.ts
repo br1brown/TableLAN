@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal, ViewEncapsulation } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal, ViewEncapsulation } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { CharacterDto, EffectDto, FeatureDto, InventoryItemDto, PoolDefDto, ProfileDto, RollEntryDto, DieView } from '../../models';
+import { CharacterDto, EffectDto, FeatureDto, InventoryItemDto, PoolDefDto, ProfileDto, RollEntryDto, DieView, dieText } from '../../models';
 import { TableService } from '../../table.service';
 import { costLabel, grantLabel } from '../../cost-label';
 import { HpPanelComponent } from '../../components/hp-panel/hp-panel';
@@ -35,14 +35,21 @@ interface TabDef {
   selector: 'app-session',
   standalone: true,
   imports: [CommonModule, FormsModule, HpPanelComponent, TavoloTabComponent, FeatureRowComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './session.component.html',
-  styleUrl: './session.component.scss',
   encapsulation: ViewEncapsulation.None,
 })
 export class SessionComponent implements OnInit {
   protected readonly table = inject(TableService);
   protected readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
+  /**
+   * Il personaggio scelto è quello nell'URL (`/:playerGuid`): la rotta è la
+   * fonte di verità, non un signal a parte. Così un reload o un link
+   * incollato riaprono la stessa scheda, e "cambia personaggio" è solo una
+   * navigazione.
+   */
   protected readonly selectedId = signal<string | null>(null);
 
   goToEdit() {
@@ -104,6 +111,12 @@ export class SessionComponent implements OnInit {
     const state = this.table.state();
     const id = this.selectedId();
     return state?.initiative?.activeId === id;
+  });
+
+  /** Gli stati sul mio personaggio (li mette il Master); io li vedo sulla scheda. */
+  protected readonly myConditions = computed(() => {
+    const id = this.selectedId();
+    return id ? (this.table.state()?.conditions?.[id] ?? []) : [];
   });
 
   protected readonly rollLog = this.table.rollLog;
@@ -349,15 +362,19 @@ export class SessionComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    // La rotta guida la selezione: `/:playerGuid` apre quella scheda, `/` la
+    // chiude. Un observable, non lo snapshot, perché navigando fra picker e
+    // scheda il componente è lo stesso e non viene ricreato.
+    this.route.paramMap.subscribe(params => this.selectedId.set(params.get('playerGuid')));
     await this.table.connect();
   }
 
   protected select(id: string): void {
-    this.selectedId.set(id);
+    this.router.navigate([id]);
   }
 
   protected forget(): void {
-    this.selectedId.set(null);
+    this.router.navigate(['/']);
   }
 
   private static readonly TURN_ICONS: Record<string, string> = {
@@ -516,6 +533,9 @@ export class SessionComponent implements OnInit {
   keptDice(roll: RollEntryDto): DieView[] {
     return roll.attempts[roll.keptIndex]?.dice ?? [];
   }
+
+  /** Come si legge un dado (i Fudge di Fate come segno, non «dN:valore»). */
+  protected readonly dieText = dieText;
 
   /**
    * Ciò che segue i dadi: il modificatore e i tentativi scartati.

@@ -1,0 +1,13 @@
+{
+  "name": "tablelan-screenshot",
+  "private": true,
+  "type": "module",
+  "description": "Strumento per rigenerare gli screenshot del README. Vedi GUIDA.md.",
+  "scripts": {
+    "genera": "node genera-screenshot.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.61.1",
+    "sharp": "^0.35.3"
+  }
+}

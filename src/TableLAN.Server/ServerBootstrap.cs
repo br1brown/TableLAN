@@ -39,16 +39,23 @@ public static class ServerBootstrap
         Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
 
     /// <summary>
-    /// La base dati è un file accanto all'eseguibile: il Master lo vede, lo
-    /// rinomina, lo archivia o lo sostituisce per cambiare campagna, senza
-    /// che l'app sappia niente di "campagne". Con TABLELAN_DB si punta altrove.
+    /// La campagna (file .db) da aprire all'avvio.
+    ///
+    /// Con <c>TABLELAN_DB</c> il Master punta a un file preciso, e quello vince
+    /// sempre. Altrimenti si riapre l'<em>ultima campagna che era attiva</em> —
+    /// ricordata da un puntatore accanto ai .db (vedi <see cref="CampaignService"/>)
+    /// — così chiudere e riaprire il programma non riporta ogni volta a
+    /// <c>tablelan.db</c>. Solo se il puntatore manca o non è più valido (primo
+    /// avvio, campagna archiviata) si ricade sul default.
     /// </summary>
     public static string ResolveDbPath()
     {
         var custom = Environment.GetEnvironmentVariable("TABLELAN_DB");
         if (!string.IsNullOrWhiteSpace(custom))
             return custom;
-        return Path.Combine(AppDirectory(), "tablelan.db");
+
+        var folder = AppDirectory();
+        return CampaignService.RememberedCampaign(folder) ?? Path.Combine(folder, "tablelan.db");
     }
 
     public static WebApplication Build(string[] args, int? port = null)
@@ -66,13 +73,19 @@ public static class ServerBootstrap
         // e queste due righe non sono mai state qualcosa da editare a mano.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
-        builder.Services.AddDbContextFactory<AppDb>(o =>
-            o.UseSqlite($"Data Source={ResolveDbPath()}"));
+        // La campagna attiva è un file .db, cambiabile a caldo: il percorso non
+        // è più inchiodato nella factory all'avvio, ma vive nel CampaignService
+        // che la factory rilegge a ogni contesto (vedi CampaignDbContextFactory).
+        builder.Services.AddSingleton(new CampaignService(ResolveDbPath()));
+        builder.Services.AddSingleton<IDbContextFactory<AppDb>, CampaignDbContextFactory>();
         builder.Services.AddSingleton<GameRepository>();
         builder.Services.AddSingleton<RollLogService>();
         builder.Services.AddSingleton<GameStateService>();
         builder.Services.AddSingleton<LanDiscoveryService>();
         builder.Services.AddSingleton<QrCodeService>();
+        // Confronta la versione in esecuzione con l'ultima release: singleton
+        // perché tiene in cache l'esito e non deve richiederlo a ogni pagina.
+        builder.Services.AddSingleton(new UpdateService(BuildInfo.Version));
         builder.Services.AddSignalR();
 
         var app = builder.Build();
@@ -89,8 +102,44 @@ public static class ServerBootstrap
 
         app.MapHub<TableHub>("/hub");
         MapApi(app, listenPort);
+        MapSpaFallback(app, files);
 
         return app;
+    }
+
+    /// <summary>
+    /// Fallback per il routing lato client con URL veri (History API): una
+    /// richiesta a <c>/master</c> o <c>/pg-&lt;guid&gt;</c> non è un file, e i
+    /// file statici la lasciano passare. Qui riceve l'<c>index.html</c>
+    /// dell'app, che poi il router Angular interpreta. Le API e l'hub sono
+    /// esclusi: lì un 404 resta un 404, non diventa la pagina dell'app.
+    /// </summary>
+    private static void MapSpaFallback(WebApplication app, IFileProvider files)
+    {
+        app.MapFallback(async ctx =>
+        {
+            var path = ctx.Request.Path.Value ?? string.Empty;
+            if (path.StartsWith("/api", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/hub", StringComparison.OrdinalIgnoreCase))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            var index = files.GetFileInfo("index.html");
+            if (!index.Exists)
+            {
+                // Client non ancora compilato: coerente col resto, pagina vuota
+                // invece di un errore.
+                ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            ctx.Response.ContentType = "text/html";
+            ctx.Response.Headers.CacheControl = "no-cache";
+            await using var stream = index.CreateReadStream();
+            await stream.CopyToAsync(ctx.Response.Body);
+        });
     }
 
     /// <summary>
@@ -102,22 +151,17 @@ public static class ServerBootstrap
     private sealed record FeatureToggleDraft(bool Active);
     private sealed record InitiativeEntryDraft(string RefId, string? Kind, string? Name, int Initiative);
     private sealed record InitiativeDraft(List<InitiativeEntryDraft>? Order, string? ActiveId);
+    private sealed record CampaignRequest(string? Name);
 
     /// <summary>
-    /// La console del Master ha nomi di file fissi (console.js, console.css) e
-    /// non mandava alcun <c>Cache-Control</c>. Senza, il browser applica la
-    /// cache euristica: si tiene il file per circa il 10% della sua età senza
-    /// nemmeno chiedere. Un file vecchio di una settimana = 17 ore di cache
-    /// cieca — e il Master finiva a far girare un miscuglio di build diverse,
-    /// con una console che fa cose insensate e nessun modo di capirlo.
-    ///
-    /// Il client dei giocatori non ha il problema: Angular gli mette l'hash nel
-    /// nome (main-46OHT5RP.js), quindi ogni build è un file nuovo e la cache
-    /// non può sbagliare. Qui si ottiene la stessa garanzia obbligando la
-    /// rivalidazione: <c>no-cache</c> non vuol dire "non conservare", vuol dire
-    /// "chiedi sempre se è ancora buono". Con l'ETag la risposta è un 304 vuoto,
-    /// e siamo su loopback: costa niente, e toglie di mezzo un'intera classe di
-    /// guasti fantasma.
+    /// I bundle di Angular portano l'hash nel nome (main-46OHT5RP.js): ogni
+    /// build è un file nuovo, quindi si possono tenere in cache per sempre. I
+    /// file a nome fisso (index.html su tutti) invece cambiano contenuto sotto
+    /// lo stesso nome: senza <c>Cache-Control</c> il browser applica la cache
+    /// euristica e può servire una pagina vecchia senza nemmeno chiedere. Qui
+    /// si obbliga la rivalidazione: <c>no-cache</c> non vuol dire "non
+    /// conservare", vuol dire "chiedi sempre se è ancora buono". Con l'ETag la
+    /// risposta è un 304 vuoto, e siamo su loopback: costa niente.
     /// </summary>
     private static void SetCachePolicy(StaticFileResponseContext ctx)
     {
@@ -135,8 +179,22 @@ public static class ServerBootstrap
 
     private static IFileProvider ResolveWebFiles(IWebHostEnvironment env)
     {
-        var embedded = new ManifestEmbeddedFileProvider(
-            typeof(ServerBootstrap).Assembly, "wwwroot");
+        // I file statici sono normalmente incorporati nell'assembly. Ma la
+        // wwwroot è interamente generata dal build del client Angular (master e
+        // giocatori, una sola app): se quel build non è ancora girato — npm
+        // assente, oppure `dotnet build -p:SkipClientBuild=true` su un clone
+        // pulito — l'assembly non ha alcun manifest, e costruire il provider
+        // incorporato lancerebbe. In quel caso il server deve partire lo stesso:
+        // il LAN gira, le pagine restano vuote finché non si compila il client.
+        IFileProvider embedded;
+        try
+        {
+            embedded = new ManifestEmbeddedFileProvider(typeof(ServerBootstrap).Assembly, "wwwroot");
+        }
+        catch (InvalidOperationException)
+        {
+            embedded = new NullFileProvider();
+        }
 
         var onDisk = Path.Combine(env.ContentRootPath, "wwwroot");
         return Directory.Exists(onDisk)
@@ -151,6 +209,21 @@ public static class ServerBootstrap
         // Ridiffonde lo stato aggiornato a tutti i client dopo una mutazione.
         static async Task Broadcast(GameStateService state, IHubContext<TableHub> hub) =>
             await hub.Clients.All.SendAsync(TableHub.StateChanged, state.Snapshot());
+
+        // Rende attiva una campagna (file .db): sposta il percorso corrente,
+        // porta il file a schema+pragma (creandolo se nuovo, con i due
+        // personaggi di prova), ricarica tutto lo stato in memoria e ridiffonde.
+        // I giocatori che avevano aperto una scheda ora inesistente ricadono da
+        // soli sulla scelta del personaggio: lo snapshot nuovo non la contiene.
+        static async Task ActivateCampaign(string path, CampaignService camp,
+            IDbContextFactory<AppDb> dbFactory, GameStateService state, IHubContext<TableHub> hub)
+        {
+            camp.SetCurrent(path);
+            await using (var db = await dbFactory.CreateDbContextAsync())
+                await SeedData.EnsureSeededAsync(db);
+            await state.InitializeAsync();
+            await Broadcast(state, hub);
+        }
 
         // ---- Lettura (LAN) ----
 
@@ -210,6 +283,21 @@ public static class ServerBootstrap
             await Broadcast(state, hub);
             await hub.Clients.All.SendAsync(TableHub.RollMade, outcome.Entry);
             return Results.Json(new { ok = true, roll = outcome.Entry, notice = outcome.Verdict.Notice });
+        });
+
+        // Tiro libero del giocatore: una formula qualsiasi, per i tiri
+        // contestuali che nessuna feature copre. Sotto il suo nome, con le sue
+        // statistiche (@Forza funziona anche qui). Non spende, non tocca lo
+        // stato — solo il log del tavolo — quindi niente Broadcast.
+        app.MapPost("/api/characters/{id}/roll-free",
+            async (string id, FreeRollRequest req, GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            var outcome = state.RollFreeForCharacter(id, req);
+            if (!outcome.Verdict.IsValid)
+                return Results.Json(new { ok = false, reason = outcome.Verdict.Reason });
+
+            await hub.Clients.All.SendAsync(TableHub.RollMade, outcome.Entry);
+            return Results.Json(new { ok = true, roll = outcome.Entry });
         });
 
         // Modifica di una feature: una rotta sola per tutto ciò che è suo.
@@ -298,6 +386,17 @@ public static class ServerBootstrap
             async (string id, HpDeltaRequest req, GameStateService state, IHubContext<TableHub> hub) =>
         {
             await state.AdjustHpAsync(id, req.Delta);
+            await Broadcast(state, hub);
+            return Results.Json(state.Snapshot());
+        });
+
+        // PF temporanei: il cuscinetto che il danno consuma per primo. Lo imposta
+        // il giocatore sulla propria scheda (un chierico glieli ha dati) — rotta
+        // di gioco come il danno/cura, non authoring.
+        app.MapPost("/api/characters/{id}/temp-hp",
+            async (string id, TempHpRequest req, GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            await state.SetTempHpAsync(id, req.Value);
             await Broadcast(state, hub);
             return Results.Json(state.Snapshot());
         });
@@ -401,6 +500,12 @@ public static class ServerBootstrap
             Results.Json(new { url = lan.GetPlayerUrl(port) }));
 
         app.MapGet("/api/admin/version", () => Results.Json(new { version = BuildInfo.Version }));
+
+        // C'è una versione più nuova? Best-effort e in cache: se offline torna
+        // "nessun aggiornamento", non un errore. Solo loopback come il resto
+        // dell'admin — è il Master a doverlo sapere, non i giocatori.
+        app.MapGet("/api/admin/update", async (UpdateService updates) =>
+            Results.Json(await updates.CheckAsync()));
 
         app.MapGet("/api/admin/qr.png", (LanDiscoveryService lan, QrCodeService qr) =>
             Results.File(qr.GeneratePng(lan.GetPlayerUrl(port)), "image/png"));
@@ -541,6 +646,14 @@ public static class ServerBootstrap
             return Results.Json(state.MonsterDtos());
         });
 
+        app.MapPost("/api/admin/monsters/{id}/duplicate", async (string id, GameRepository repo, GameStateService state) =>
+        {
+            var newId = await repo.DuplicateMonsterAsync(id);
+            if (newId is null) return Results.NotFound();
+            await state.ReloadMonstersAsync();
+            return Results.Json(state.MonsterDtos());
+        });
+
         app.MapDelete("/api/admin/monsters/{id}", async (string id, GameRepository repo, GameStateService state) =>
         {
             await repo.DeleteMonsterAsync(id);
@@ -625,6 +738,21 @@ public static class ServerBootstrap
             return Results.Json(new { ok = true, roll = outcome.Entry });
         });
 
+        // Tiro libero del Master: la stessa cosa, ma sotto il nome "Master" e
+        // senza scheda. Sta fra le rotte /api/admin/ perché è del Master e basta
+        // — il boundary loopback lo tiene sulla sua macchina — ma il tiro poi lo
+        // vedono tutti al tavolo, come ogni altro.
+        app.MapPost("/api/admin/roll",
+            async (FreeRollRequest req, GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            var outcome = state.RollFreeAsMaster(req);
+            if (!outcome.Verdict.IsValid)
+                return Results.Json(new { ok = false, reason = outcome.Verdict.Reason });
+
+            await hub.Clients.All.SendAsync(TableHub.RollMade, outcome.Entry);
+            return Results.Json(new { ok = true, roll = outcome.Entry });
+        });
+
         // La lista arriva intera e il server la riordina: il client non decide
         // chi va prima. Il nome viaggia con la voce perché una bestia cancellata
         // dal bestiario a metà scontro deve restare leggibile nel giro — il
@@ -654,6 +782,25 @@ public static class ServerBootstrap
             return Results.Ok();
         });
 
+        // Stati (avvelenato, prono, concentrazione…) su una creatura qualunque,
+        // PG o mostro. È tracciamento del combattimento: sta col Master, dietro
+        // loopback come l'iniziativa e il bestiario.
+        app.MapPost("/api/admin/conditions/{id}",
+            async (string id, ConditionRequest req, GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            state.AddCondition(id, req.Label, req.Rounds);
+            await Broadcast(state, hub);
+            return Results.Ok();
+        });
+
+        app.MapDelete("/api/admin/conditions/{id}/{conditionId}",
+            async (string id, string conditionId, GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            state.RemoveCondition(id, conditionId);
+            await Broadcast(state, hub);
+            return Results.Ok();
+        });
+
         // Profilo di sistema: il Master ne edita il JSON per adattare le
         // meccaniche (economia del turno, riserve, cicli) ad altri giochi.
         app.MapGet("/api/admin/profile", (GameStateService state) =>
@@ -671,6 +818,46 @@ public static class ServerBootstrap
             await state.SetProfileAsync(profile);
             await Broadcast(state, hub);
             return Results.Json(state.Profile);
+        });
+
+        // ---- Campagne (Capitolo: "La campagna è un file"), solo loopback ----
+        // Una campagna è un file .db accanto all'eseguibile. Averne più d'una e
+        // cambiarle in corsa è il modo comodo di gestirle, senza rinominare file
+        // e riavviare — il Master lo fa dalla console.
+
+        app.MapGet("/api/admin/campaigns", (CampaignService camp) =>
+            Results.Json(new { current = camp.CurrentName, campaigns = camp.List() }));
+
+        app.MapPost("/api/admin/campaigns/switch",
+            async (CampaignRequest req, CampaignService camp, IDbContextFactory<AppDb> dbFactory,
+                   GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            var path = camp.PathFor(req.Name);
+            if (path is null)
+                return Results.BadRequest(new { error = "Nome campagna non valido." });
+            if (!File.Exists(path))
+                return Results.NotFound(new { error = "Questa campagna non esiste." });
+            if (string.Equals(path, camp.CurrentPath, StringComparison.OrdinalIgnoreCase))
+                return Results.Json(new { current = camp.CurrentName });
+
+            await ActivateCampaign(path, camp, dbFactory, state, hub);
+            return Results.Json(new { current = camp.CurrentName });
+        });
+
+        app.MapPost("/api/admin/campaigns/new",
+            async (CampaignRequest req, CampaignService camp, IDbContextFactory<AppDb> dbFactory,
+                   GameStateService state, IHubContext<TableHub> hub) =>
+        {
+            var path = camp.PathFor(req.Name);
+            if (path is null)
+                return Results.BadRequest(new { error = "Serve un nome per la campagna." });
+            if (File.Exists(path))
+                return Results.BadRequest(new { error = "C'è già una campagna con questo nome." });
+
+            // Il file nasce qui: EnsureSeededAsync crea schema e pragma e mette i
+            // due personaggi di prova, come al primo avvio.
+            await ActivateCampaign(path, camp, dbFactory, state, hub);
+            return Results.Json(new { current = camp.CurrentName });
         });
     }
 

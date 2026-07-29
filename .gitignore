@@ -16,5 +16,4 @@ clients/player/dist/
 
 # Il client compilato viene pubblicato in wwwroot da scripts/build-client.sh;
 # solo la dashboard del Master è sorgente versionato.
-src/TableLAN.Server/wwwroot/*
-!src/TableLAN.Server/wwwroot/admin/
+src/TableLAN.Server/wwwroot/

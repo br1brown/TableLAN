@@ -7,6 +7,12 @@ namespace TableLAN.Core.Dice;
 /// </summary>
 public sealed class SumResolver : IRollResolver
 {
+    /// <summary>Ruolo di un dado che «kh/kl» ha scartato: mostrato, ma fuori dal totale.</summary>
+    public const string Dropped = "dropped";
+
+    /// <summary>Ruolo di un dado Fudge/Fate: il render lo mostra come segno, non «dN:valore».</summary>
+    public const string Fudge = "fudge";
+
     public static readonly SumResolver Instance = new();
 
     public string? FormulaSuffix => null;
@@ -17,11 +23,16 @@ public sealed class SumResolver : IRollResolver
         var shown = new List<DieRoll>(dice.Count);
         foreach (var d in dice)
         {
-            diceTotal += d.Sign * d.Value;
-            shown.Add(new DieRoll(d.Sides, d.Value));
+            if (!d.Dropped)
+                diceTotal += d.Sign * d.Value;
+            shown.Add(new DieRoll(d.Sides, d.Value, Role(d)));
         }
         return new ResolvedRoll(shown, modifier, diceTotal + modifier, Outcome: null);
     }
+
+    /// <summary>Il ruolo che il render usa per colorare/disegnare un dado.</summary>
+    internal static string? Role(RolledDie d) =>
+        d.Dropped ? Dropped : d.Fudge ? Fudge : null;
 }
 
 /// <summary>
@@ -44,9 +55,9 @@ public sealed class SuccessResolver(int threshold) : IRollResolver
         var shown = new List<DieRoll>(dice.Count);
         foreach (var d in dice)
         {
-            if (d.Sign > 0 && d.Value >= Threshold)
+            if (!d.Dropped && d.Sign > 0 && d.Value >= Threshold)
                 successi++;
-            shown.Add(new DieRoll(d.Sides, d.Value));
+            shown.Add(new DieRoll(d.Sides, d.Value, SumResolver.Role(d)));
         }
         // Modificatore mostrato 0: in un pool non c'è nulla da sommare.
         return new ResolvedRoll(shown, Modifier: 0, successi, Outcome: null);

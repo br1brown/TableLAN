@@ -50,6 +50,9 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
     // zero di troppo (100000d6), non un attacco.
     private const int MaxDiceCount = 100;
     private const int MaxSides = 1000;
+    // Quante volte al massimo un singolo dado può ri-esplodere: la catena è
+    // finita ma un d2 esplosivo potrebbe tirare a lungo, e questo la ferma.
+    private const int ExplodeCap = 100;
 
     public override string ToString() => Source;
 
@@ -172,6 +175,11 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
             error = $"Un tiro Duality vuole due dadi fissi, non dadi-da-statistica, in «{text}».";
             return false;
         }
+        if (terms.Any(t => t.Keep != 0))
+        {
+            error = $"Un tiro Duality tiene entrambi i dadi: togli «kh/kl» da «{text}».";
+            return false;
+        }
 
         var diceTerms = terms.Where(t => t.IsDice).ToList();
         var diceCount = diceTerms.Sum(t => t.Count);
@@ -283,10 +291,31 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
         }
 
         i++; // consuma la 'd'
+
+        // 'dF' = dado Fudge/Fate: niente numero di facce, il valore è −1/0/+1.
+        // "4dF" → quattro; "dF" → uno. Non esplode e non si tiene-scarta.
+        if (i < text.Length && (text[i] == 'F' || text[i] == 'f'))
+        {
+            i++;
+            var fudgeCount = 1;
+            if (digits.Length > 0 && !int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out fudgeCount))
+            {
+                error = $"Quantità di dadi troppo grande in «{text}».";
+                return false;
+            }
+            if (fudgeCount is < 1 or > MaxDiceCount)
+            {
+                error = $"La quantità di dadi dev'essere tra 1 e {MaxDiceCount} (in «{text}»).";
+                return false;
+            }
+            term = DiceTerm.FudgeDice(sign, fudgeCount);
+            return true;
+        }
+
         var sidesDigits = ReadDigits(text, ref i);
         if (sidesDigits.Length == 0)
         {
-            error = $"Manca il numero di facce dopo 'd' in «{text}».";
+            error = $"Manca il numero di facce dopo 'd' in «{text}» (per i dadi Fate scrivi 'dF').";
             return false;
         }
 
@@ -314,7 +343,52 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
             return false;
         }
 
-        term = DiceTerm.Dice(sign, count, sides);
+        var explode = ReadExplode(text, ref i);
+        if (!TryReadKeep(text, ref i, out var keep, out error))
+            return false;
+        term = DiceTerm.Dice(sign, count, sides, explode, keep);
+        return true;
+    }
+
+    /// <summary>Un '!' subito dopo i dadi = esplosivi (l'Ace di Savage Worlds). Lo consuma se c'è.</summary>
+    private static bool ReadExplode(string text, ref int i)
+    {
+        if (i < text.Length && text[i] == '!') { i++; return true; }
+        return false;
+    }
+
+    /// <summary>
+    /// <c>kh3</c>/<c>kl1</c> subito dopo i dadi = «tieni i migliori/peggiori N».
+    /// Restituisce &gt;0 per kh, &lt;0 per kl, 0 se non c'è nulla da tenere.
+    /// </summary>
+    private static bool TryReadKeep(string text, ref int i, out int keep, out string? error)
+    {
+        keep = 0;
+        error = null;
+
+        if (i >= text.Length || (text[i] != 'k' && text[i] != 'K'))
+            return true;
+
+        var j = i + 1;
+        if (j >= text.Length || (text[j] != 'h' && text[j] != 'H' && text[j] != 'l' && text[j] != 'L'))
+        {
+            error = $"Dopo 'k' ci va 'h' (i più alti) o 'l' (i più bassi), es. «4d6kh3», in «{text}».";
+            return false;
+        }
+        var high = text[j] == 'h' || text[j] == 'H';
+
+        j++;
+        var digits = ReadDigits(text, ref j);
+        if (digits.Length == 0
+            || !int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var n)
+            || n < 1)
+        {
+            error = $"«k{(high ? 'h' : 'l')}» vuole quanti dadi tenere, almeno 1, es. «4d6k{(high ? 'h' : 'l')}3», in «{text}».";
+            return false;
+        }
+
+        i = j;
+        keep = high ? n : -n;
         return true;
     }
 
@@ -379,7 +453,10 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
                     error = $"Un dado deve avere fra 2 e {MaxSides} facce: «{facce}» in «{text}».";
                     return false;
                 }
-                term = DiceTerm.StatDice(sign, name, sides);
+                var explode = ReadExplode(text, ref i);
+                if (!TryReadKeep(text, ref i, out var keep, out error))
+                    return false;
+                term = DiceTerm.StatDice(sign, name, sides, explode, keep);
                 return true;
             }
         }
@@ -462,8 +539,36 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
                     ? Math.Clamp(stats[term.StatName!], 0, MaxDiceCount)
                     : term.Count;
 
+                // I dadi di questo termine, raccolti a parte: «kh/kl» sceglie fra
+                // loro chi conta prima di versarli nel tiro.
+                var termDice = new List<RolledDie>();
                 for (var n = 0; n < quanti; n++)
-                    rolled.Add(new RolledDie(term.Sides, rng.Next(1, term.Sides + 1), term.Sign));
+                {
+                    // Fudge: −1/0/+1 uniformi (rng dà 1..3, si scala a −1..+1).
+                    // Non esplode e non si somma sul massimo: è un altro dado.
+                    if (term.Fudge)
+                    {
+                        termDice.Add(new RolledDie(term.Sides, rng.Next(1, 4) - 2, term.Sign, Fudge: true));
+                        continue;
+                    }
+
+                    var value = rng.Next(1, term.Sides + 1);
+                    termDice.Add(new RolledDie(term.Sides, value, term.Sign));
+
+                    // Ace: un dado sul massimo si ri-tira e si somma, finché non
+                    // smette. Il tetto ferma la catena su un dado "storto" (un d2
+                    // esplosivo), non è una regola di gioco.
+                    for (var chain = 0; term.Explode && value == term.Sides && chain < ExplodeCap; chain++)
+                    {
+                        value = rng.Next(1, term.Sides + 1);
+                        termDice.Add(new RolledDie(term.Sides, value, term.Sign));
+                    }
+                }
+
+                if (term.Keep != 0)
+                    MarkDropped(termDice, term.Keep);
+
+                rolled.AddRange(termDice);
             }
             else if (term.IsStat)
             {
@@ -480,6 +585,29 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
         // basta; il segno resta sul dado grezzo perché al resolver serve.
         var resolved = Resolver.Resolve(rolled, modifier);
         return new RollAttempt(resolved.Dice, resolved.Modifier, resolved.Total, resolved.Outcome);
+    }
+
+    /// <summary>
+    /// Marca come scartati i dadi che «kh/kl» non tiene. <paramref name="keep"/>
+    /// &gt;0 tiene i più alti, &lt;0 i più bassi; il resto resta visibile ma non
+    /// conta. Chiedere di tenerne più di quanti ne siano caduti li tiene tutti.
+    /// </summary>
+    private static void MarkDropped(List<RolledDie> dice, int keep)
+    {
+        var quanti = Math.Abs(keep);
+        if (quanti >= dice.Count)
+            return;
+
+        // Gli indici in ordine di "bontà": per kh il valore più alto vince, per
+        // kl il più basso. I primi 'quanti' si tengono, gli altri si sbarrano.
+        var tenuti = Enumerable.Range(0, dice.Count)
+            .OrderByDescending(i => keep > 0 ? dice[i].Value : -dice[i].Value)
+            .Take(quanti)
+            .ToHashSet();
+
+        for (var i = 0; i < dice.Count; i++)
+            if (!tenuti.Contains(i))
+                dice[i] = dice[i] with { Dropped = true };
     }
 
     private static int IndexOfBest(List<RollAttempt> attempts, bool best)
@@ -522,12 +650,13 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
 
             if (term.IsDice)
             {
-                pezzi.Add($"{Segno(term.Sign, pezzi.Count == 0)}{term.Count}d{term.Sides}");
+                var facce = term.Fudge ? "F" : $"{term.Sides}{KeepSuffix(term.Keep)}";
+                pezzi.Add($"{Segno(term.Sign, pezzi.Count == 0)}{term.Count}d{facce}");
             }
             else if (term.IsStatDice)
             {
                 TryResolve(stats, term.StatName!, out var quanti);
-                pezzi.Add($"{Segno(term.Sign, pezzi.Count == 0)}{quanti}d{term.Sides}");
+                pezzi.Add($"{Segno(term.Sign, pezzi.Count == 0)}{quanti}d{term.Sides}{KeepSuffix(term.Keep)}");
             }
             else if (term.IsStat)
             {
@@ -548,6 +677,9 @@ public sealed record DiceFormula(IReadOnlyList<DiceTerm> Terms, string Source, I
 
         static string Segno(int sign, bool primo) =>
             sign < 0 ? "−" : primo ? "" : "+";
+
+        static string KeepSuffix(int keep) =>
+            keep == 0 ? "" : keep > 0 ? $"kh{keep}" : $"kl{-keep}";
     }
 
     private static bool TryResolve(IReadOnlyDictionary<string, object?> stats, string name, out int value)

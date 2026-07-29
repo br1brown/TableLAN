@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
-import { CharacterDto, InventoryItemDto, IntentRejection, RollEntryDto, TableState } from './models';
+import { CampaignInfo, CharacterDto, InitiativeEntryDto, InventoryItemDto, IntentRejection, RollEntryDto, TableState, UpdateStatus } from './models';
 
 /**
  * Canale col motore. Dopo il riorientamento lo strumento è la scheda
@@ -94,6 +94,41 @@ export class TableService {
     // L'esito arriva via SignalR come tutti gli altri: una sola strada.
   }
 
+  /**
+   * Tiro libero del giocatore: una formula qualunque ("2d6+3", "1d20+@Forza"),
+   * fuori da ogni feature, per i tiri contestuali del tavolo. Non spende
+   * niente; l'esito torna nel log come ogni altro. In caso di formula rotta
+   * torna il perché, così la si può correggere.
+   */
+  async rollFree(characterId: string, formula: string,
+                 opts: { label?: string; times?: number; keep?: 'Sum' | 'Highest' | 'Lowest' } = {}): Promise<string | null> {
+    const res = await this.post(`/api/characters/${characterId}/roll-free`, {
+      formula,
+      label: opts.label ?? null,
+      times: opts.times ?? 1,
+      keep: opts.keep ?? 'Sum',
+    });
+    const body = (await res.json().catch(() => ({}))) as { ok: boolean; reason?: string };
+    return body.ok ? null : (body.reason ?? 'Tiro non riuscito.');
+  }
+
+  /**
+   * Tiro libero del Master: come sopra, ma sotto il nome "Master" e senza
+   * scheda. Rotta admin (solo loopback): la fa la finestra del Master, il
+   * tavolo la vede. Torna il messaggio d'errore, o null se è andata.
+   */
+  async rollFreeMaster(formula: string,
+                       opts: { label?: string; times?: number; keep?: 'Sum' | 'Highest' | 'Lowest' } = {}): Promise<string | null> {
+    const res = await this.post('/api/admin/roll', {
+      formula,
+      label: opts.label ?? null,
+      times: opts.times ?? 1,
+      keep: opts.keep ?? 'Sum',
+    });
+    const body = (await res.json().catch(() => ({}))) as { ok: boolean; reason?: string };
+    return body.ok ? null : (body.reason ?? 'Tiro non riuscito.');
+  }
+
   resetTurn(characterId: string): Promise<Response> {
     return fetch(`/api/characters/${characterId}/reset-turn`, { method: 'POST' });
   }
@@ -104,6 +139,11 @@ export class TableService {
 
   adjustHp(characterId: string, delta: number): Promise<Response> {
     return this.post(`/api/characters/${characterId}/hp`, { delta });
+  }
+
+  /** Imposta i PF temporanei (il cuscinetto che il danno consuma per primo). */
+  setTempHp(characterId: string, value: number): Promise<Response> {
+    return this.post(`/api/characters/${characterId}/temp-hp`, { value });
   }
 
   /** Equipaggia/rimuovi: accende o spegne gli effetti di una feature indossabile. */
@@ -210,6 +250,158 @@ export class TableService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+  }
+
+  // ---- Rotte del Master (solo loopback) ----
+  //
+  // Sono le stesse `/api/admin/*` che la console statica chiamava a mano: da
+  // un telefono in LAN tornano 403, dalla finestra del Master rispondono. La
+  // UI del master è ora la stessa app Angular — il confine è di rete, non di
+  // interfaccia (Capitoli 5 e 11).
+
+  /** Le bestie del bestiario. Su un telefono in LAN torna 403 → lista vuota. */
+  async monsters(): Promise<CharacterDto[]> {
+    try {
+      const res = await fetch('/api/admin/monsters');
+      return res.ok ? await res.json() : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** L'URL di join (IP LAN corrente) per il QR e la testata. */
+  async joinUrl(): Promise<string | null> {
+    try {
+      const res = await fetch('/api/admin/join-info');
+      return res.ok ? (await res.json()).url : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** La versione incisa nel build (`v0.3+a1b2c3d` o `dev`). */
+  async version(): Promise<string | null> {
+    try {
+      const res = await fetch('/api/admin/version');
+      return res.ok ? (await res.json()).version : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Controllo aggiornamenti: confronta la versione in esecuzione con l'ultima
+   * release su GitHub. Best-effort — offline torna `updateAvailable: false`,
+   * senza far rumore. Null solo se la rotta stessa non risponde (non-loopback).
+   */
+  async updateCheck(): Promise<UpdateStatus | null> {
+    try {
+      const res = await fetch('/api/admin/update');
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Aggiunge una scheda al tavolo: è il Master che decide chi siede. */
+  addCharacter(name: string, maxHp: number): Promise<Response> {
+    return this.post('/api/admin/characters', { name, maxHp });
+  }
+
+  removeCharacter(id: string): Promise<Response> {
+    return this.send('DELETE', `/api/admin/characters/${id}`, null);
+  }
+
+  /** L'intera iniziativa: il server la riordina, il client non decide chi va prima. */
+  setInitiative(order: InitiativeEntryDto[], activeId: string | null): Promise<Response> {
+    return this.post('/api/admin/initiative', { order, activeId });
+  }
+
+  advanceTurn(): Promise<Response> {
+    return this.post('/api/admin/initiative/next', {});
+  }
+
+  // Stati sul combattimento (avvelenato, prono…): su qualunque creatura, PG o
+  // mostro. Rotta admin — è tracciamento del Master. Lo stato nuovo arriva via
+  // SignalR come ogni altra mutazione.
+  addCondition(refId: string, label: string, rounds: number | null): Promise<Response> {
+    return this.post(`/api/admin/conditions/${refId}`, { label, rounds });
+  }
+
+  removeCondition(refId: string, conditionId: string): Promise<Response> {
+    return this.send('DELETE', `/api/admin/conditions/${refId}/${conditionId}`, null);
+  }
+
+  // Bestiario: PF in combattimento (delta) e CRUD. Le HP/delete tornano la
+  // lista aggiornata, come faceva la console.
+  addMonster(name: string, maxHp: number, armorClass: number, notes: string | null): Promise<Response> {
+    return this.post('/api/admin/monsters', { name, maxHp, armorClass, notes });
+  }
+
+  async adjustMonsterHp(id: string, delta: number): Promise<CharacterDto[] | null> {
+    const res = await this.post(`/api/admin/monsters/${id}/hp`, { delta });
+    return res.ok ? res.json() : null;
+  }
+
+  async deleteMonster(id: string): Promise<CharacterDto[] | null> {
+    const res = await this.send('DELETE', `/api/admin/monsters/${id}`, null);
+    return res.ok ? res.json() : null;
+  }
+
+  /** Sdoppia un mostro: una nuova istanza con PF pieni e un nome numerato. */
+  async duplicateMonster(id: string): Promise<CharacterDto[] | null> {
+    const res = await this.post(`/api/admin/monsters/${id}/duplicate`, {});
+    return res.ok ? res.json() : null;
+  }
+
+  /**
+   * Importa una scheda da un PDF di D&D Beyond. Il file non esce di qui: la
+   * rotta è dietro loopback e il PDF si legge in memoria e basta.
+   */
+  async importDdb(file: File): Promise<{ ok: boolean; data: any }> {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/admin/import/ddb', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  }
+
+  // Profilo di sistema: le meccaniche (turno, riserve, cicli, statistiche).
+  async profile(): Promise<any> {
+    const res = await fetch('/api/admin/profile');
+    return res.ok ? res.json() : null;
+  }
+
+  async profilePresets(): Promise<any[]> {
+    const res = await fetch('/api/admin/profile/presets');
+    return res.ok ? res.json() : [];
+  }
+
+  async saveProfile(profile: unknown): Promise<{ ok: boolean; data: any }> {
+    const res = await this.put('/api/admin/profile', profile);
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  }
+
+  // Campagne: ognuna è un file .db, cambiabile a caldo. Lo stato nuovo arriva
+  // via SignalR come ogni altra mutazione; qui torna solo l'esito.
+  async campaigns(): Promise<{ current: string; campaigns: CampaignInfo[] }> {
+    try {
+      const res = await fetch('/api/admin/campaigns');
+      return res.ok ? await res.json() : { current: '', campaigns: [] };
+    } catch {
+      return { current: '', campaigns: [] };
+    }
+  }
+
+  async switchCampaign(name: string): Promise<{ ok: boolean; data: any }> {
+    const res = await this.post('/api/admin/campaigns/switch', { name });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+
+  async newCampaign(name: string): Promise<{ ok: boolean; data: any }> {
+    const res = await this.post('/api/admin/campaigns/new', { name });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
   }
 
   /**

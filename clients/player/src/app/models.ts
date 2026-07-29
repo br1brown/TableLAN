@@ -6,6 +6,15 @@ export interface TableState {
   profile: ProfileDto;
   characters: CharacterDto[];
   initiative?: InitiativeDto;
+  /** Stati attivi per RefId (PG e mostri): avvelenato, prono, concentrazione… */
+  conditions?: Record<string, ConditionDto[]>;
+}
+
+/** Uno stato su una creatura: etichetta e durata opzionale in round. */
+export interface ConditionDto {
+  id: string;
+  label: string;
+  rounds: number | null;
 }
 
 /**
@@ -19,6 +28,8 @@ export interface TableState {
 export interface InitiativeDto {
   order: InitiativeEntryDto[];
   activeId: string | null;
+  /** Round corrente del combattimento; 0 = non ancora iniziato. */
+  round?: number;
 }
 
 export interface InitiativeEntryDto {
@@ -34,6 +45,24 @@ export interface ProfileDto {
   turnResources: TurnResourceDto[];
   pools: PoolDefDto[];
   cycles: CycleDto[];
+  /** I dadi «sul tavolo»: il vassoio configurabile per sistema. Può mancare. */
+  dice?: DiePresetDto[];
+  /** Gli stati che questo gioco conosce: la scelta rapida del «+ stato». */
+  conditions?: string[];
+}
+
+/** Un dado del vassoio: un'etichetta e la formula che tira. */
+export interface DiePresetDto {
+  label: string;
+  formula: string;
+}
+
+/** Esito del controllo aggiornamenti: versione in uso vs ultima release. */
+export interface UpdateStatus {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  url: string | null;
 }
 
 export interface TurnResourceDto {
@@ -59,7 +88,7 @@ export interface CycleDto {
 export interface CharacterDto {
   id: string;
   name: string;
-  hp: { current: number; max: number };
+  hp: { current: number; max: number; temp?: number };
   customStats: Record<string, unknown>;
   /**
    * Il modificatore, per le sole statistiche che ne hanno uno secondo il
@@ -182,8 +211,17 @@ export interface FeatureDto {
 export interface DieView {
   sides: number;
   value: number;
-  /** "hope"/"fear" nella Duality di Daggerheart; null per i dadi anonimi. */
+  /** "hope"/"fear" (Duality), "dropped" (kh/kl), "fudge" (Fate); null per gli anonimi. */
   role: string | null;
+}
+
+/**
+ * Come si legge un dado al tavolo. Quasi sempre «d6:4»; un dado Fudge di Fate
+ * però non ha «facce» — il suo valore è un segno, e si mostra «dF:＋ / 0 / −».
+ */
+export function dieText(d: DieView): string {
+  if (d.role === 'fudge') return 'dF:' + (d.value > 0 ? '＋' : d.value < 0 ? '−' : '0');
+  return `d${d.sides}:${d.value}`;
 }
 
 /** Esito di un tiro, dal server. Conserva anche i tentativi scartati. */
@@ -200,6 +238,14 @@ export interface RollEntryDto {
   keptIndex: number;
   /** Esito categorico del tiro tenuto ("hope"/"fear"/"crit"), o null. */
   outcome: string | null;
+}
+
+/** Una campagna del Master: un file .db accanto all'eseguibile. */
+export interface CampaignInfo {
+  name: string;
+  current: boolean;
+  sizeBytes: number;
+  modified: string;
 }
 
 export interface IntentRejection {

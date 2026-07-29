@@ -45,6 +45,30 @@ public sealed class GameProfile
         id is null ? null : ExclusiveSlots.FirstOrDefault(s => s.Id == id);
 
     /// <summary>
+    /// I dadi «sul tavolo»: il vassoio di tiri rapidi che chiunque può fare
+    /// senza scrivere una formula — d20, d6, la Sfida di un sistema specifico.
+    ///
+    /// Sta nel profilo, e non nella sessione, perché è arredo del sistema: i
+    /// dadi che un gioco usa sono uguali per tutti i giocatori e non cambiano da
+    /// una serata all'altra (a differenza dell'iniziativa, che è viva). Vuoto è
+    /// legittimo: il client mostra allora un set standard di poliedrici, così
+    /// anche una campagna vecchia senza questa lista ha comunque i dadi.
+    /// </summary>
+    public List<DiePreset> Dice { get; init; } = [];
+
+    /// <summary>
+    /// Gli stati che <em>questo</em> gioco conosce: Avvelenato e Prono in D&amp;D,
+    /// Scosso e Vulnerabile in Savage Worlds, Frenesia e Torpore in Vampiri, la
+    /// Pazzia in Call of Cthulhu. Sono il vocabolario da cui il Master pesca
+    /// quando mette uno stato su una creatura, invece di riscriverlo ogni volta.
+    ///
+    /// Come i dadi, è arredo del sistema — uguale per tutti, diverso da gioco a
+    /// gioco — e sta nel profilo, non nella sessione (gli stati <em>attivi</em>
+    /// su una creatura vivono lì). Vuoto è legittimo: resta solo il campo libero.
+    /// </summary>
+    public List<string> Conditions { get; init; } = [];
+
+    /// <summary>
     /// Le statistiche del sistema (es. Forza…Carisma in D&amp;D, Umanità in
     /// Vampiri). Sono <em>del gioco</em>, non del singolo personaggio: senza
     /// questa lista ogni scheda doveva reinventarsi i propri nomi a mano, e
@@ -66,6 +90,22 @@ public sealed class GameProfile
     public bool IsTurnResource(string id) => TurnResource(id) is not null;
 
     public bool IsPool(string id) => Pool(id) is not null;
+}
+
+/// <summary>
+/// Un dado del vassoio: un'etichetta e la formula che tira.
+///
+/// La formula è la stessa grammatica di ogni altro tiro (<c>1d20</c>,
+/// <c>2d6+3</c>, e anche <c>duality: 2d12</c>), quindi un preset non è un caso
+/// speciale: è un tiro libero con un nome, che il vantaggio/svantaggio del
+/// vassoio decora al volo. L'etichetta è ciò che si legge sul bottone; vuota,
+/// il client mostra la formula.
+/// </summary>
+public sealed class DiePreset
+{
+    public string Label { get; init; } = string.Empty;
+
+    public required string Formula { get; init; }
 }
 
 /// <summary>

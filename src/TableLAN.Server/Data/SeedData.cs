@@ -486,6 +486,7 @@ public static class SeedData
         // materializza le righe già esistenti, e sono le schede dei giocatori.
         await AddColumnIfMissingAsync(db, "Characters", "Type", "TEXT NOT NULL DEFAULT 'Character'");
         await AddColumnIfMissingAsync(db, "Characters", "Notes", "TEXT NULL");
+        await AddColumnIfMissingAsync(db, "Characters", "TempHp", "INTEGER NOT NULL DEFAULT 0");
     }
 
     /// <summary>

@@ -1,0 +1,62 @@
+<h2 class="mb-1"><i class="ra ra-monster-skull text-warning"></i> Bestiario</h2>
+<p class="text-secondary">I blocchi statistici che prepari. Solo tuoi: i giocatori non li vedono.</p>
+
+<details class="card mb-4">
+  <summary class="card-header">+ Aggiungi un mostro</summary>
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-12 col-lg-6">
+        <label class="form-label">Nome</label>
+        <input class="form-control" [ngModel]="name()" (ngModelChange)="name.set($event)" placeholder="es. Aberrazione di Drakkenheim">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label">PF</label>
+        <input class="form-control" type="number" min="1" [(ngModel)]="hp">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label">CA</label>
+        <input class="form-control" type="number" min="1" [(ngModel)]="ac">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Blocco statistico / note</label>
+        <textarea class="form-control" rows="4" [ngModel]="notes()" (ngModelChange)="notes.set($event)"
+                  placeholder="Copiato dal manuale che possiedi"></textarea>
+      </div>
+    </div>
+    <div class="mt-3">
+      <button class="btn btn-primary" (click)="add()">Aggiungi al bestiario</button>
+    </div>
+  </div>
+</details>
+
+<div class="row row-cols-1 row-cols-lg-2 row-cols-xxl-3 g-2">
+  @for (m of monsters(); track m.id) {
+    <div class="col">
+      <div class="card h-100">
+        <div class="card-body p-2">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold flex-grow-1">{{ m.name }}</span>
+            <span class="text-info small">CA {{ ca(m) }}</span>
+            <span class="text-danger small font-monospace">PF {{ m.hp.current }}/{{ m.hp.max }}</span>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-secondary" (click)="changeHp(m.id, -5)">−5</button>
+              <button class="btn btn-outline-secondary" (click)="changeHp(m.id, -1)">−1</button>
+              <button class="btn btn-outline-secondary" (click)="changeHp(m.id, 1)">+1</button>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary border-0" title="Sdoppia: un'altra istanza con PF pieni"
+                    (click)="duplicate(m)">⧉</button>
+            <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/edit', m.id]"
+               title="Apri la scheda">🔗</a>
+            <button class="btn btn-sm btn-outline-danger border-0" title="Rimuovi"
+                    (click)="remove(m)">✕</button>
+          </div>
+          @if (m.notes) {
+            <div class="text-secondary small mt-2" style="white-space: pre-wrap;">{{ m.notes }}</div>
+          }
+        </div>
+      </div>
+    </div>
+  } @empty {
+    <div class="col"><p class="text-secondary">Nessun mostro. Aggiungine uno qui sopra.</p></div>
+  }
+</div>

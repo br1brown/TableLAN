@@ -82,6 +82,20 @@ public sealed class GameRepository(IDbContextFactory<AppDb> dbFactory)
         return rows.Select(row => ToDomain(row, sources, features)).ToList();
     }
 
+    /// <summary>
+    /// Le note libere dei mostri (il blocco statistico), mappa id→testo. Vivono
+    /// solo su <see cref="MonsterRow"/> e non nel dominio puro, che non le
+    /// conosce: il DTO le riattacca per id. Solo le voci non vuote — un mostro
+    /// senza note non compare.
+    /// </summary>
+    public async Task<Dictionary<string, string>> LoadMonsterNotesAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Characters.OfType<MonsterRow>().AsNoTracking()
+            .Where(m => m.Notes != "")
+            .ToDictionaryAsync(m => m.Id, m => m.Notes);
+    }
+
     public async Task<Character?> LoadCharacterAsync(string characterId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -561,6 +575,55 @@ public sealed class GameRepository(IDbContextFactory<AppDb> dbFactory)
         return id;
     }
 
+    /// <summary>
+    /// Sdoppia un mostro: una nuova istanza con PF pieni e un nome numerato
+    /// (<c>Goblin</c> → <c>Goblin (2)</c>). È il caso di ogni scontro con più
+    /// nemici uguali — tre goblin con PF separati, senza rifarli a mano. Copia
+    /// il blocco (PF, CA, statistiche, note); le feature restano vuote perché
+    /// sono entità a parte e condividerne i riferimenti legherebbe le copie.
+    /// </summary>
+    public async Task<string?> DuplicateMonsterAsync(string monsterId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var src = await db.Characters.OfType<MonsterRow>().AsNoTracking().FirstOrDefaultAsync(m => m.Id == monsterId);
+        if (src is null)
+            return null;
+
+        var names = await db.Characters.OfType<MonsterRow>().Select(m => m.Name).ToListAsync();
+        var id = "mon-" + Guid.NewGuid().ToString("N");
+        db.Characters.Add(new MonsterRow
+        {
+            Id = id,
+            Name = NextInstanceName(src.Name, names),
+            MaxHp = src.MaxHp,
+            CurrentHp = src.MaxHp,      // istanza fresca: PF pieni, non quelli scalati del primo
+            Notes = src.Notes,
+            SourceIdsJson = src.SourceIdsJson,
+            FeatureIdsJson = "[]",
+            CustomStatsJson = src.CustomStatsJson,
+            StatRollsJson = src.StatRollsJson,
+        });
+        await db.SaveChangesAsync();
+        return id;
+    }
+
+    /// <summary>Il prossimo nome libero della serie: «Goblin» / «Goblin (2)» → «Goblin (3)».</summary>
+    private static string NextInstanceName(string name, IEnumerable<string> existing)
+    {
+        var root = System.Text.RegularExpressions.Regex.Replace(name, @"\s*\(\d+\)\s*$", "").Trim();
+        var rx = new System.Text.RegularExpressions.Regex(
+            "^" + System.Text.RegularExpressions.Regex.Escape(root) + @"(?:\s*\((\d+)\))?$");
+        var max = 1;
+        foreach (var n in existing)
+        {
+            var m = rx.Match((n ?? string.Empty).Trim());
+            if (!m.Success) continue;
+            var k = m.Groups[1].Success ? int.Parse(m.Groups[1].Value) : 1;
+            if (k > max) max = k;
+        }
+        return $"{root} ({max + 1})";
+    }
+
     public async Task AdjustMonsterHpAsync(string monsterId, int delta)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -646,6 +709,7 @@ public sealed class GameRepository(IDbContextFactory<AppDb> dbFactory)
 
         row.CurrentHp = character.CurrentHp;
         row.MaxHp = character.MaxHp;
+        row.TempHp = character.TempHp;
         // Riserve multi-pool: { poolId: { livello: [max, residui] } }.
         row.ResourcesJson = JsonSerializer.Serialize(
             character.Resources.Snapshot().ToDictionary(
@@ -683,6 +747,7 @@ public sealed class GameRepository(IDbContextFactory<AppDb> dbFactory)
             Name = row.Name,
             MaxHp = row.MaxHp,
             CurrentHp = row.CurrentHp,
+            TempHp = row.TempHp,
             Sources = sourceIds
                 .Where(sources.ContainsKey)
                 .Select(id => ToDomain(sources[id]))
@@ -718,20 +783,32 @@ public sealed class GameRepository(IDbContextFactory<AppDb> dbFactory)
         ParentSourceId = row.ParentSourceId,
     };
 
+    /// <summary>
+    /// I costi di una feature: sono id-stringa interpretati dal profilo, e più
+    /// d'uno (una magia costa l'Azione E lo slot). Se <c>CostsJson</c> è null la
+    /// riga non è ancora passata dal backfill e si legge il vecchio campo
+    /// singolo. Estratto da ToDomain di proposito: la stessa espressione inline
+    /// (un condizionale annidato con collection expression dentro un object
+    /// initializer) non si parsa su alcuni SDK .NET 8; qui è anche più chiara.
+    /// </summary>
+    private static List<ActivationCost> ParseCosts(FeatureRow row)
+    {
+        if (row.CostsJson is not null)
+            return JsonSerializer.Deserialize<List<ActivationCost>>(row.CostsJson, JsonOpts) ?? [];
+
+        if (row.CostKind is null or "" or ActivationCost.NoneKind)
+            return [];
+
+        return [new ActivationCost(row.CostKind, row.SlotLevel)];
+    }
+
     private static Feature ToDomain(FeatureRow row) => new()
     {
         Id = row.Id,
         ShortName = row.ShortName,
         DescriptionId = row.DescriptionId,
         SourceIds = JsonSerializer.Deserialize<List<string>>(row.SourceIdsJson, JsonOpts) ?? [],
-        // I costi sono id-stringa interpretati dal profilo, e sono più d'uno:
-        // una magia costa l'Azione e lo slot. Se CostsJson è null la riga non è
-        // ancora passata dal backfill: si legge il vecchio campo singolo.
-        Costs = row.CostsJson is null
-            ? (row.CostKind is null or "" or ActivationCost.NoneKind
-                ? []
-                : [new ActivationCost(row.CostKind, row.SlotLevel)])
-            : JsonSerializer.Deserialize<List<ActivationCost>>(row.CostsJson, JsonOpts) ?? [],
+        Costs = ParseCosts(row),
         Grants = JsonSerializer.Deserialize<List<ActivationCost>>(row.GrantsJson, JsonOpts) ?? [],
         Occupies = row.Occupies,
         Usage = row.MaxUses is int max

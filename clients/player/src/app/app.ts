@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TableService } from './table.service';
 
@@ -20,8 +20,7 @@ import { TableService } from './table.service';
   standalone: true,
   imports: [RouterOutlet],
   template: `<router-outlet></router-outlet>`,
-  styleUrl: './app.scss',
-  encapsulation: ViewEncapsulation.None,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App implements OnInit {
   private table = inject(TableService);

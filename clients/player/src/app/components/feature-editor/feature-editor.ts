@@ -1,4 +1,4 @@
-import { Component, computed, input, output, signal, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CostDto, EffectDto, FeatureDraft, FeatureDto, ProfileDto } from '../../models';
 import { costLabel } from '../../cost-label';
@@ -24,8 +24,8 @@ import { costLabel } from '../../cost-label';
   selector: 'app-feature-editor',
   standalone: true,
   imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './feature-editor.html',
-  styleUrl: './feature-editor.scss',
 })
 export class FeatureEditorComponent {
   readonly feature = input.required<FeatureDto>();

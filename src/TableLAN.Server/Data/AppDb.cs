@@ -125,6 +125,8 @@ public class CharacterRow
     public required string Name { get; set; }
     public int MaxHp { get; set; }
     public int CurrentHp { get; set; }
+    /// <summary>PF temporanei: cuscinetto che il danno consuma per primo. 0 = nessuno.</summary>
+    public int TempHp { get; set; }
 
     /// <summary>Array JSON degli id delle Fonti attive del personaggio.</summary>
     public required string SourceIdsJson { get; set; }

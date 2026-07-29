@@ -145,15 +145,18 @@ sul suo foglio.
 | Sistema | Cosa vuole | Il motore |
 |---|---|---|
 | D&D 5e, **Pathfinder 2e** | `1d20 + mod + competenza` vs CD | ✅ |
+| D&D — caratteristiche | `4d6`, scarta il più basso | ✅ `4d6kh3` |
 | **Vampiri / Mondo di Tenebra** | N d10, conta i successi ≥6 | ✅ pool |
+| **Savage Worlds** | dadi che **esplodono** (Ace) | ✅ `1d8!` |
+| **Daggerheart** | 2d12 Duality, Speranza/Paura | ✅ `duality: 2d12` |
+| **Fate** | 4dF (dadi Fudge −/0/+) | ✅ `4dF` |
 | Call of Cthulhu | d100 **sotto** il punteggio | ❌ confronto |
-| Savage Worlds | dadi che esplodono | ❌ |
-| Fate | 4dF | ❌ |
 
-Restano fuori i dadi che **esplodono** (Savage Worlds) e il **confronto** di Call of
-Cthulhu: i primi cambiano quanti dadi cadono *mentre cadono*, il secondo chiede al
-motore di dire "riuscito/fallito" invece di un numero. Sono due motori diversi, non due
-opzioni.
+Resta fuori un solo caso: il **confronto** di Call of Cthulhu, che chiede al motore di
+dire "riuscito/fallito" invece di un numero. È una scelta, non un buco: TableLAN mostra
+il totale e l'esito lo giudica il tavolo, come per ogni tiro. Gli esplosivi di Savage
+(`1d8!`), il «tieni i migliori» di D&D (`4d6kh3`), la coppia Duality di Daggerheart e i
+dadi Fudge di Fate (`4dF`), invece, il motore ora li tira davvero.
 
 ## I pool a successi (Vampiri e simili)
 

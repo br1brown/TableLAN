@@ -11,6 +11,14 @@ using TableLAN.Server.Data;
 public sealed record RollOutcome(ValidationResult Verdict, RollEntry? Entry);
 
 /// <summary>
+/// Uno stato su una creatura: un'etichetta (<c>Avvelenato</c>, <c>Prono</c>) e,
+/// se serve, quanti round dura. <see cref="Rounds"/> nullo = a tempo
+/// indeterminato, lo toglie il Master a mano; un numero scala da sé a ogni
+/// round nuovo e sparisce a zero.
+/// </summary>
+public sealed record Condition(string Id, string Label, int? Rounds);
+
+/// <summary>
 /// Fonte di verità in memoria della sessione. Lo strumento è la scheda snella
 /// personale dei giocatori, non un VTT condiviso; l'economia del turno resta
 /// perché è utile al singolo giocatore.
@@ -36,6 +44,12 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
     /// li tocca nemmeno conoscendone l'id.
     /// </summary>
     private Dictionary<string, Character> _monsters = new();
+
+    /// <summary>
+    /// Note libere dei mostri (blocco statistico), id→testo. Non stanno nel
+    /// dominio puro: il DTO le riattacca per id.
+    /// </summary>
+    private Dictionary<string, string> _monsterNotes = new();
 
     private GameProfile _profile = GameProfiles.Dnd5e();
 
@@ -64,9 +78,20 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
     {
         public List<InitiativeEntry> Order { get; set; } = new();
         public string? ActiveId { get; set; }        // RefId di chi è di turno
+        public int Round { get; set; }               // 0 = non ancora iniziato
     }
 
     private readonly InitiativeState _initiative = new();
+
+    /// <summary>
+    /// Gli stati attivi su una creatura (avvelenato, prono, concentrazione…),
+    /// per RefId — PG e mostri insieme. Con un conto di round opzionale che
+    /// scala da sé a ogni round nuovo. È stato di sessione come il log dei tiri
+    /// e le note dei mostri: vive in memoria, non nello schema — a fine serata
+    /// non serve più, e un round non è un dato di campagna.
+    /// </summary>
+    private readonly Dictionary<string, List<Condition>> _conditions = new();
+    private long _conditionSeq;
 
     /// <summary>
     /// L'iniziativa corrente, in copia: chi legge non tiene in mano la lista
@@ -124,8 +149,12 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
     public async Task ReloadMonstersAsync()
     {
         var monsters = await repository.LoadMonstersAsync();
+        var notes = await repository.LoadMonsterNotesAsync();
         lock (_gate)
+        {
             _monsters = monsters.ToDictionary(c => c.Id);
+            _monsterNotes = notes;
+        }
     }
 
     public async Task InitializeAsync()
@@ -138,11 +167,17 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
 
         var characters = await repository.LoadCharactersAsync();
         var monsters = await repository.LoadMonstersAsync();
+        var monsterNotes = await repository.LoadMonsterNotesAsync();
         lock (_gate)
         {
             _profile = profile;
             _characters = characters.ToDictionary(c => c.Id);
             _monsters = monsters.ToDictionary(c => c.Id);
+            _monsterNotes = monsterNotes;
+            // Ripartendo (anche cambiando campagna) l'iniziativa in memoria non
+            // deve sopravvivere: i suoi id sono di un'altra partita.
+            _initiative.Order = [];
+            _initiative.ActiveId = null;
             _turns.Clear();
             foreach (var id in _characters.Keys)
                 _turns[id] = new TurnState(_characters[id].EffectiveTurnLimits(_profile));
@@ -316,6 +351,77 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
     }
 
     /// <summary>
+    /// L'id con cui compaiono nel log i tiri liberi del Master: non è un
+    /// personaggio, ma il client vuole comunque una chiave stabile per
+    /// riconoscerli (colorarli, filtrarli). Non collide con nessun Guid.
+    /// </summary>
+    public const string MasterId = "master";
+
+    /// <summary>
+    /// Un tiro libero: una formula qualunque, fuori da ogni feature e senza
+    /// nulla da spendere. Copre due buchi che i giocatori hanno trovato al primo
+    /// tavolo vero — il Master, che non ha scheda ma tira lo stesso, e i tiri
+    /// contestuali di un personaggio che il manuale non prevede.
+    ///
+    /// Resta un tiro come gli altri: stessa validazione della formula, stesso
+    /// motore, stesso log del tavolo (broadcast a monte). L'unica differenza è
+    /// che il nome sotto cui appare glielo diamo noi — "Master", o il
+    /// personaggio — invece di leggerlo da una feature.
+    /// </summary>
+    private RollOutcome RollFree(
+        string subjectId,
+        string subjectName,
+        string label,
+        string? formulaText,
+        IReadOnlyDictionary<string, object?> stats,
+        int times,
+        Keep keep)
+    {
+        if (string.IsNullOrWhiteSpace(formulaText))
+            return new RollOutcome(ValidationResult.Fail("Nessuna formula da tirare."), null);
+
+        if (!DiceFormula.TryParse(formulaText, out var formula, out var parseError))
+            return new RollOutcome(ValidationResult.Fail($"Formula non valida: {parseError}"), null);
+
+        var evaluation = formula!.TryEvaluate(stats, new RollOptions(times, keep), _rng, subjectName, out var evaluated);
+        if (!evaluation.IsValid)
+            return new RollOutcome(evaluation, null);
+
+        var entry = rollLog.Add(subjectId, subjectName, label, spent: false, evaluated!);
+        return new RollOutcome(ValidationResult.Ok(), entry);
+    }
+
+    /// <summary>
+    /// Il tiro libero di un personaggio: sotto il suo nome, con le sue
+    /// statistiche — così <c>1d20+@Forza</c> funziona anche a mano, fuori da
+    /// ogni feature.
+    /// </summary>
+    public RollOutcome RollFreeForCharacter(string characterId, FreeRollRequest request)
+    {
+        lock (_gate)
+        {
+            if (!_characters.TryGetValue(characterId, out var character))
+                return new RollOutcome(ValidationResult.Fail($"Personaggio '{characterId}' sconosciuto."), null);
+
+            var label = string.IsNullOrWhiteSpace(request.Label) ? "Tiro libero" : request.Label!.Trim();
+            return RollFree(characterId, character.Name, label, request.Formula, StatsFor(character), request.Times, request.KeepMode);
+        }
+    }
+
+    /// <summary>
+    /// Il tiro libero del Master: nessuna scheda, quindi nessuna statistica —
+    /// un <c>@riferimento</c> qui fallisce con un messaggio chiaro, non un dado
+    /// muto. Appare al tavolo sotto il nome "Master".
+    /// </summary>
+    public RollOutcome RollFreeAsMaster(FreeRollRequest request)
+    {
+        var label = string.IsNullOrWhiteSpace(request.Label) ? "Tiro del Master" : request.Label!.Trim();
+        return RollFree(MasterId, "Master", label, request.Formula, EmptyStats, request.Times, request.KeepMode);
+    }
+
+    private static readonly IReadOnlyDictionary<string, object?> EmptyStats = new Dictionary<string, object?>();
+
+    /// <summary>
     /// Statistiche visibili a una formula: quelle effettive (base + effetti
     /// attivi, così un anello equipaggiato cambia da solo ogni @riferimento),
     /// più la chiave riservata dei PF massimi.
@@ -410,6 +516,15 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
         {
             character.AdjustHp(delta);
         }
+        await repository.SaveCharacterAsync(character);
+    }
+
+    /// <summary>Imposta i PF temporanei di un personaggio (il cuscinetto anti-danno).</summary>
+    public async Task SetTempHpAsync(string characterId, int value)
+    {
+        var character = Require(characterId);
+        lock (_gate)
+            character.SetTempHp(value);
         await repository.SaveCharacterAsync(character);
     }
 
@@ -540,7 +655,10 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
             {
                 profile = ProfileDto(_profile),
                 characters = _characters.Values.Select(BuildDto).ToList(),
-                initiative = _initiative
+                initiative = _initiative,
+                // Gli stati, per RefId: la scheda del giocatore vede i propri, la
+                // console del Master li vede tutti nell'iniziativa. Una fonte sola.
+                conditions = _conditions,
             };
         }
     }
@@ -608,6 +726,11 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
 
             _initiative.Order = [.. deduped.OrderByDescending(e => e.Initiative)];
             _initiative.ActiveId = _initiative.Order.Any(e => e.RefId == activeId) ? activeId : null;
+
+            // Svuotare l'iniziativa chiude il combattimento: il conto dei round
+            // riparte da zero, così il prossimo scontro non eredita il numero.
+            if (_initiative.Order.Count == 0)
+                _initiative.Round = 0;
         }
     }
 
@@ -632,6 +755,7 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
         {
             if (_initiative.Order.Count == 0) return;
 
+            var wasNull = _initiative.ActiveId is null;
             int idx = _initiative.ActiveId is not null
                 ? _initiative.Order.FindIndex(e => e.RefId == _initiative.ActiveId)
                 : -1;
@@ -639,9 +763,58 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
 
             _initiative.ActiveId = _initiative.Order[idx].RefId;
 
+            // Round nuovo quando il giro torna in cima (o al primo avvio): allora
+            // gli stati a tempo scalano di uno e quelli scaduti cadono.
+            if (wasNull || idx == 0)
+            {
+                _initiative.Round++;
+                TickConditions();
+            }
+
             // Comincia un turno — di chiunque sia — e "una volta per turno"
             // vuol dire esattamente questo.
             StartOfTurnForEveryone();
+        }
+    }
+
+    /// <summary>Scala di un round gli stati a tempo, togliendo quelli a zero. Va chiamato sotto lock.</summary>
+    private void TickConditions()
+    {
+        foreach (var (refId, list) in _conditions)
+        {
+            for (var i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i].Rounds is not int r) continue;
+                var left = r - 1;
+                list[i] = list[i] with { Rounds = left };
+                if (left <= 0) list.RemoveAt(i);
+            }
+            if (list.Count == 0) _conditions.Remove(refId);
+        }
+    }
+
+    /// <summary>
+    /// Mette uno stato su una creatura (PG o mostro). Etichetta obbligatoria;
+    /// <paramref name="rounds"/> nullo o ≤ 0 = a tempo indeterminato.
+    /// </summary>
+    public void AddCondition(string refId, string label, int? rounds)
+    {
+        label = label?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(label)) return;
+        lock (_gate)
+        {
+            var list = _conditions.TryGetValue(refId, out var l) ? l : (_conditions[refId] = new());
+            list.Add(new Condition($"cond-{++_conditionSeq}", label, rounds is > 0 ? rounds : null));
+        }
+    }
+
+    public void RemoveCondition(string refId, string conditionId)
+    {
+        lock (_gate)
+        {
+            if (!_conditions.TryGetValue(refId, out var list)) return;
+            list.RemoveAll(c => c.Id == conditionId);
+            if (list.Count == 0) _conditions.Remove(refId);
         }
     }
 
@@ -683,6 +856,12 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
         cycles = p.Cycles.Select(c => new { id = c.Id, label = c.Label, rank = c.Rank, perTurn = c.PerTurn }),
         exclusiveSlots = p.ExclusiveSlots.Select(s => new { id = s.Id, label = s.Label }),
         stats = p.Stats.Select(s => new { id = s.Id, label = s.Label, @default = s.Default, roll = s.Roll }),
+        // Il vassoio dei dadi: è ciò che alimenta i bottoni di tiro rapido sul
+        // tavolo. Senza questa riga lo snapshot lo taceva, e il client ricadeva
+        // sempre sul set standard — i dadi configurati non arrivavano mai.
+        dice = p.Dice.Select(d => new { label = d.Label, formula = d.Formula }),
+        // Il vocabolario degli stati del sistema: la scelta rapida del «+ stato».
+        conditions = p.Conditions,
     };
 
     /// <summary>Le statistiche dichiarate dal profilo attivo, coi loro default.</summary>
@@ -696,8 +875,11 @@ public sealed class GameStateService(GameRepository repository, RollLogService r
     {
         id = c.Id,
         name = c.Name,
+        // Note libere: le hanno solo i mostri; per un PG la mappa non ha la
+        // chiave e resta null. Riattaccate qui perché il dominio non le porta.
+        notes = _monsterNotes.GetValueOrDefault(c.Id),
         // PF massimi e statistiche mostrano i valori EFFETTIVI (base + effetti attivi).
-        hp = new { current = c.CurrentHp, max = c.EffectiveMaxHp() },
+        hp = new { current = c.CurrentHp, max = c.EffectiveMaxHp(), temp = c.TempHp },
         customStats = c.EffectiveStats(),
         // Il modificatore, per le sole statistiche che ne hanno uno. È il
         // numero che il giocatore usa davvero: "Forza 18" da solo non gli dice

@@ -137,15 +137,16 @@
       <NpmExitCode Condition="'$(NpmExitCode)' == ''">1</NpmExitCode>
     </PropertyGroup>
 
-    <Warning Condition="'$(NpmExitCode)' != '0'" Text="npm non trovato: il client dei giocatori non è stato compilato. La console del Master (/admin) funziona lo stesso; per la pagina dei giocatori installa Node.js e ricompila, oppure lancia scripts/build-client.sh." />
+    <Warning Condition="'$(NpmExitCode)' != '0'" Text="npm non trovato: il client Angular non è stato compilato. Il server LAN parte lo stesso, ma senza l'app (giocatori e console Master) le pagine restano vuote finché non installi Node.js e ricompili, oppure lanci scripts/build-client.sh." />
 
     <Message Condition="'$(NpmExitCode)' == '0'" Importance="high" Text="TableLAN: compilo il client Angular dei giocatori…" />
     <Exec Condition="'$(NpmExitCode)' == '0' and !Exists('$(ClientDir)/node_modules')" Command="npm ci" WorkingDirectory="$(ClientDir)" />
     <Exec Condition="'$(NpmExitCode)' == '0'" Command="npm run build" WorkingDirectory="$(ClientDir)" />
 
-    <!-- Ripulisce wwwroot preservando la console del Master, poi copia il build. -->
+    <!-- Ripulisce wwwroot dal build precedente, poi copia il nuovo. L'intera
+         wwwroot è generata: master e giocatori sono ora la stessa app Angular. -->
     <ItemGroup Condition="'$(NpmExitCode)' == '0'">
-      <OldClient Include="wwwroot/**/*" Exclude="wwwroot/admin/**/*" />
+      <OldClient Include="wwwroot/**/*" />
       <NewClient Include="$(ClientDist)/**/*" />
     </ItemGroup>
     <Delete Condition="'$(NpmExitCode)' == '0'" Files="@(OldClient)" />

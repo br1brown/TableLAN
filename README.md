@@ -1,6 +1,6 @@
 # TableLAN
 
-**La scheda del personaggio sul telefono, mentre giocate al tavolo.**
+**La scheda del personaggio sul telefono, mentre giocate al tavolo. Di qualunque gioco si tratti.**
 
 <p align="center">
   <img src="docs/screenshot/01-scheda-telefono.png" alt="La scheda di un personaggio sul telefono, in combattimento" width="260">
@@ -12,19 +12,198 @@
   <img src="docs/screenshot/03-tiro-daggerheart.png" alt="Tiri Duality di Daggerheart con gli esiti Speranza, Paura e Critico" width="600">
 </p>
 
-<p align="center"><em>La scheda sul telefono del giocatore e la console del Master. Sotto: TableLAN non è solo D&amp;D — i tiri di Daggerheart, con l'esito Speranza / Paura / Critico già leggibile.</em></p>
+<p align="center"><em>A sinistra il telefono del giocatore, a destra il computer del Master. Sotto, un tiro Duality di Daggerheart — perché no, <strong>non è solo D&amp;D</strong>.</em></p>
 
-Il Master apre un programma sul suo computer. I giocatori inquadrano un quadratino
-bianco e nero con la fotocamera del telefono, e si ritrovano la scheda del loro
-personaggio sullo schermo: quanti punti ferita ha, cosa può fare in questo turno,
-cosa ha già usato. Si tira anche i dadi, se vuole.
+<p align="center">
+  <strong>Scarica</strong>:
+  <a href="https://github.com/br1brown/TableLAN/releases/latest/download/TableLAN-win-x64.zip">Windows</a>
+  ·
+  <a href="https://github.com/br1brown/TableLAN/releases/latest/download/TableLAN-linux-x64.zip">Linux</a>
+  — un file solo, niente da installare per i giocatori.
+</p>
 
-Non serve internet. Non serve iscriversi da nessuna parte. Non serve installare niente
-sul telefono. Basta che il computer del Master e i telefoni siano attaccati **alla
-stessa rete Wi-Fi** — quella di casa va benissimo.
+<p align="center"><sub><a href="https://github.com/br1brown/TableLAN/releases/latest">Tutte le versioni</a> · se invece sviluppi, la roba tecnica è <a href="#per-chi-mette-le-mani-nel-codice">più sotto</a>.</sub></p>
 
 ---
 
+## In una riga
+
+Il Master apre un programma sul suo computer. I giocatori inquadrano un quadratino bianco e nero, e si ritrovano la scheda del loro personaggio sul telefono: quanti punti ferita ha, cosa può fare in questo turno, cosa ha già speso. Tira anche i dadi, se vuole.
+
+Niente internet. Niente iscrizioni. Niente da installare sul telefono. Basta che il computer del Master e i telefoni siano sulla **stessa Wi-Fi** — quella di casa va benissimo.
+
+E poi c'è la cosa grossa, quella per cui vale la pena leggere oltre:
+
+> **Le regole non sono cablate.** Sotto non c'è "D&D con lo skin cambiato". C'è un motore che non sa cosa sia una Classe, un Attacco Furtivo o uno Slot Incantesimo, e legge un **profilo** editabile dalla console. Cambi profilo, cambi gioco. Sette sono già pronti, e li vedi tutti qui sotto — con le loro schede vere, i loro dadi veri.
+
+---
+
+## Una serata, dal telefono del giocatore
+
+### Si entra inquadrando un quadrato
+
+Il Master mostra il QR; il giocatore lo punta con la fotocamera, sceglie chi è, ed è dentro. Nessuna app da scaricare, nessuna password da recuperare via mail.
+
+<p align="center">
+  <img src="docs/guida/02-qr-invito.png" alt="Il QR d'invito" width="360">
+  <img src="docs/guida/03-chi-sei.png" alt="La scelta del personaggio" width="200">
+</p>
+
+### Tutta la scheda in una schermata
+
+In cima i punti ferita — un tocco per danno o cura, con un cuscinetto di **PF temporanei** che il danno consuma per primo. Sotto, gli stati che ti hanno messo addosso, l'economia del turno, e la lista di cosa puoi fare: ognuna col costo e col tasto per usarla o per tirare.
+
+<p align="center">
+  <img src="docs/guida/04-scheda-intera.png" alt="La scheda intera" width="230">
+  <img src="docs/guida/05-punti-ferita.png" alt="Danno, cura e PF temporanei" width="230">
+</p>
+
+### I dadi, a portata di pollice
+
+Un tocco per il tiro; vantaggio e svantaggio senza dover cercare un menù. Il **vassoio** porta i dadi del sistema (il d20, la Sfida, quel che serve), e un campo per la formula che nessun bottone prevede — con un **`?`** che ricorda cosa sa scrivere: esplosivi, «tieni i migliori», pool a successi, Duality.
+
+<p align="center">
+  <img src="docs/guida/06-tiro-risultato.png" alt="L'esito di un tiro" width="230">
+  <img src="docs/guida/07-vantaggio.png" alt="Vantaggio con un tocco" width="230">
+</p>
+
+### Le linguette: cosa hai, cosa porti, chi tira
+
+Azioni, Tratti, lo Zaino ordinabile, e il **Tavolo** coi tiri di tutti in tempo reale. Un incantatore vede le sue riserve; chi non lo è, non ha slot fantasma tra i piedi.
+
+<p align="center">
+  <img src="docs/guida/08-incantatrice.png" alt="Le riserve di un'incantatrice" width="185">
+  <img src="docs/guida/09-tab-tratti.png" alt="I tratti" width="185">
+  <img src="docs/guida/10-tab-zaino.png" alt="Lo zaino" width="185">
+  <img src="docs/guida/11-tab-tavolo.png" alt="Il tavolo coi tiri di tutti" width="185">
+</p>
+
+### La modalità combattimento
+
+Lascia solo ciò che puoi fare adesso, avvisa quando **tocca a te**, e in fondo mette un tasto grande per chiudere il turno. Niente da scrollare per trovare l'azione giusta mentre gli altri aspettano.
+
+<p align="center">
+  <img src="docs/guida/13-in-combattimento.png" alt="In combattimento" width="230">
+  <img src="docs/guida/14-termina-turno.png" alt="Termina il turno" width="230">
+</p>
+
+---
+
+## Dall'altra parte: la console del Master
+
+### L'iniziativa la ordina il server, non l'opinione
+
+Una lista sola, giocatori e mostri mescolati — perché è lì che il combattimento li mescola. Il **round** si conta da sé, e su ogni voce si appuntano gli **stati** (col conto alla rovescia che cala). Due console aperte non possono mostrare due ordini diversi.
+
+<p align="center">
+  <img src="docs/guida/01-console-master.png" alt="La console del Master" width="720">
+</p>
+<p align="center">
+  <img src="docs/guida/18-iniziativa.png" alt="L'iniziativa con round e stati" width="440">
+  <img src="docs/guida/19-tiri.png" alt="Il log dei tiri" width="270">
+</p>
+
+### Le schede e il bestiario
+
+Le schede si aprono tutte nello stesso editor. Il bestiario è solo del Master — e un mostro si **sdoppia in istanze** con un tocco: tre goblin, tre barre di PF separate, senza rinominarli a mano.
+
+<p align="center">
+  <img src="docs/guida/20-schede.png" alt="Le schede al tavolo" width="720">
+</p>
+<p align="center">
+  <img src="docs/guida/21-bestiario.png" alt="Il bestiario" width="360">
+  <img src="docs/guida/22-bestiario-aggiungi.png" alt="Aggiungere un mostro" width="360">
+</p>
+
+### Si sistema tutto da qui
+
+Da *Modifica* si cambiano nome, PF, statistiche, riserve, e si regola ogni capacità: costo, usi, tiro, effetti. Una magia non richiede di essere un mago — il costo è solo un dato — e una scheda di D&D Beyond si importa dal suo PDF.
+
+<p align="center">
+  <img src="docs/guida/15-modifica-scheda.png" alt="Modifica scheda" width="230">
+  <img src="docs/guida/16-modifica-capacita.png" alt="Modifica di una capacità" width="230">
+</p>
+
+---
+
+## Sette giochi, un motore solo
+
+Qui sta il grosso potenziale, ed è meglio mostrarlo che raccontarlo. **Lo stesso identico programma**, cambiando un profilo dalla console, diventa sette giochi diversi — coi loro dadi, le loro riserve, i loro stati, la loro *matematica*. Ogni coppia qui sotto è: com'è configurato il sistema (a sinistra) e come tira davvero al tavolo (a destra). Nessun fotomontaggio — sono scatti veri, generati guidando il vero client.
+
+### D&D 5e — il d20 contro la CD, e il 4d6 che scarta il più basso
+
+Le sei caratteristiche, la CA che si guarda e non si tira, la Competenza che scrivi tu salendo di livello. E `4d6kh3` — la generazione delle caratteristiche — in un bottone: quattro d6, il più basso sbarrato.
+
+<p align="center">
+  <img src="docs/guida/sys-dnd-sistema.png" alt="D&D 5e: il profilo" width="400">
+  <img src="docs/guida/sys-dnd-tiri.png" alt="D&D 5e: i tiri" width="280">
+</p>
+
+### Daggerheart — i Duality Dice
+
+Due d12, Speranza e Paura: conta il totale, ma conta anche **quale dei due vince** (Speranza, Paura, o Critico se pari). Niente slot: le riserve sono **Speranza** e **Stress**, i due contatori attorno a cui gira la fiction.
+
+<p align="center">
+  <img src="docs/guida/sys-daggerheart-sistema.png" alt="Daggerheart: il profilo" width="400">
+  <img src="docs/guida/sys-daggerheart-tiri.png" alt="Daggerheart: i tiri Duality" width="280">
+</p>
+
+### Pathfinder 2e — tre azioni e il maluscolo
+
+L'economia a **tre azioni** per turno, la competenza come punteggio che cresce di grado, e gli attacchi multipli con la penalità (−5, −10) che il giocatore si scrive nella formula.
+
+<p align="center">
+  <img src="docs/guida/sys-pf2e-sistema.png" alt="Pathfinder 2e: il profilo" width="400">
+  <img src="docs/guida/sys-pf2e-tiri.png" alt="Pathfinder 2e: i tiri" width="280">
+</p>
+
+### Call of Cthulhu — il d100 e la Sanità che si sgretola
+
+Il **percentile** in testa al vassoio, i Punti Magia come riserva, e gli stati che qui sono soprattutto mentali: pazzia temporanea, attacco di follia. (Il confronto "sotto il punteggio" lo giudica il tavolo — vedi *Cosa manca*.)
+
+<p align="center">
+  <img src="docs/guida/sys-coc-sistema.png" alt="Call of Cthulhu: il profilo" width="400">
+  <img src="docs/guida/sys-coc-tiri.png" alt="Call of Cthulhu: i tiri d100" width="280">
+</p>
+
+### Vampiri / Mondo di Tenebra — i pool a successi
+
+Tanti d10 quanto vale il punteggio, e **si contano** le facce da 6 in su — non si sommano (il totale è 4 successi, non 40). Il Sangue si spende, l'Umanità si tira, la Forza di Volontà fa entrambe.
+
+<p align="center">
+  <img src="docs/guida/sys-wod-sistema.png" alt="Vampiri: il profilo" width="400">
+  <img src="docs/guida/sys-wod-tiri.png" alt="Vampiri: i pool a successi" width="280">
+</p>
+
+### Savage Worlds — i dadi che esplodono
+
+I dadi di Tratto dal d4 al d12, e l'**Ace**: un dado che cade sul massimo si ri-tira e si somma (`1d4! → d4:4 d4:2 = 6`). I Bennies che si azzerano a fine sessione, i Punti Potere che no.
+
+<p align="center">
+  <img src="docs/guida/sys-savage-sistema.png" alt="Savage Worlds: il profilo" width="400">
+  <img src="docs/guida/sys-savage-tiri.png" alt="Savage Worlds: i dadi esplosivi" width="280">
+</p>
+
+### Fate — i dadi Fudge
+
+Quattro dadi da **−1 / 0 / +1**, sommati (totale da −4 a +4, più l'abilità). Si mostrano come segno, non come numero: `dF:＋ dF:0 dF:− dF:＋`.
+
+<p align="center">
+  <img src="docs/guida/sys-fate-sistema.png" alt="Fate: il profilo" width="400">
+  <img src="docs/guida/sys-fate-tiri.png" alt="Fate: i dadi Fudge" width="280">
+</p>
+
+### E se il tuo gioco non è tra questi?
+
+Parti dal preset più vicino e ritoccalo dalla console: statistiche, dadi, riserve, cicli di riposo, stati. Ogni partita è un file, e si cambia campagna **a caldo**, senza riavviare. Il JSON c'è — ma dietro un interruttore, per chi vuole sbirciare.
+
+<p align="center">
+  <img src="docs/guida/23-sistema.png" alt="L'editor di sistema" width="320">
+  <img src="docs/guida/25-sistema-preset.png" alt="Partire da un preset" width="320">
+  <img src="docs/guida/24-campagna.png" alt="Le campagne" width="320">
+</p>
+
+---
 ## Cosa serve
 
 - Un computer col **Windows** o con **Linux** (Ubuntu, Mint), che è quello del Master.
@@ -120,20 +299,31 @@ Se non succede niente, quasi sempre è una di queste due:
 Il quadrato cambia a ogni avvio, quindi non ha senso salvarlo o fotografarlo per la
 volta dopo: va riletto ogni sera.
 
-## La campagna è un file
+## Le campagne sono file
 
-Nella cartella di TableLAN, dopo il primo avvio, compare un file chiamato
-**`tablelan.db`**. Quella è la vostra campagna: i personaggi, gli oggetti, tutto.
+Una campagna è un file `.db` nella cartella di TableLAN. Dentro c'è tutto:
+personaggi, oggetti, regole. Al primo avvio ne nasce uno, `tablelan.db`.
 
-Siccome è un file normale, si tratta come un file normale:
+Puoi averne quante vuoi, coi nomi che vuoi. In **Sistema → Campagna** ne crei di
+nuove e passi dall'una all'altra senza chiudere il programma. Stanno tutte nella
+stessa cartella, una per partita.
 
-- **Backup**: copialo da qualche parte. Tutto qui.
-- **Archiviare una campagna e cominciarne un'altra**: rinominalo (per esempio
-  `vecchia-campagna.db`). Al riavvio ne nasce uno nuovo e vuoto.
-- **Riprendere una campagna vecchia**: rimetti il suo file al posto di `tablelan.db`.
+Quando riapri il programma, riparte dall'ultima campagna che avevi aperto, non da
+`tablelan.db`. Lo sa perché accanto ai `.db` c'è un file `.tablelan-campagna` con
+scritto il nome dell'ultima: un segnalibro, niente più. Lo cancelli e riparti da
+`tablelan.db`.
 
-TableLAN non sa cosa sia una "campagna" e non ha un menù per gestirle: decidi tu,
-spostando i file.
+Nella cartella trovi quindi:
+
+| File | Cos'è |
+|---|---|
+| `tablelan.db`, `drakkenheim.db`, … | le campagne (i dati) |
+| `.tablelan-campagna` | il nome dell'ultima aperta (un segnalibro) |
+
+Sono file normali: per il **backup** copi il `.db`; per **archiviare** lo sposti o
+lo rinomini; per **riprendere** una vecchia campagna la rimetti nella cartella e
+la apri da *Sistema → Campagna*. Se sposti quella aperta per ultima, alla
+riapertura torni a `tablelan.db`.
 
 ## Aggiornarlo
 
@@ -145,8 +335,32 @@ scarica lo zip nuovo, estrai, e sostituisci il vecchio programma col nuovo.
 programma, non i vostri personaggi.
 
 Per sapere che versione stai usando, guarda in alto a destra nella finestra del
-Master: c'è una scritta piccola tipo `v0.3+a1b2c3d`.
+Master: c'è una scritta piccola tipo `v0.3+a1b2c3d`. Se è uscita una versione più
+recente, lì accanto compare da sé un avviso: il programma confronta la versione in
+uso con l'ultima release su GitHub (una volta ogni tanto, e senza far niente se
+sei offline), così non devi controllare a mano.
 
+---
+
+## Cosa manca — le cose oneste
+
+Un tavolo serio merita di sapere anche cosa **non** trova qui. Due liste, perché sono due cose diverse: quello che manca e prima o poi si aggiunge, e quello che manca *per scelta* — perché TableLAN vuole essere una cosa fatta bene, non tutte fatte a metà.
+
+### Non c'è (ancora)
+
+- **Il Mac.** Non è una dimenticanza: la versione per macOS semplicemente non viene costruita. Su un Mac, oggi, TableLAN non parte.
+- **Il "sotto il punteggio" di Call of Cthulhu.** Il d100 lo tira; ma dire *riuscito/fallito* confrontando il tiro con l'abilità, quello no — mostra il numero e l'esito lo giudica il tavolo, come per ogni altro tiro. È l'unico dado, dei sette sistemi, che il motore non risolve fino in fondo.
+- **L'auto-tiro dell'iniziativa.** I numeri li scrivi tu; il server li ordina. Il motore non tira l'iniziativa al posto tuo.
+- **L'import di personaggi** oltre al PDF di D&D Beyond. Per gli altri sistemi la scheda si costruisce a mano dall'editor — una volta, poi resta.
+
+### Non c'è per scelta (ed è meglio così)
+
+- **Non è un VTT.** Niente mappa condivisa, niente pedine, niente nebbia di guerra, niente linee di vista. Il combattimento tattico resta sul tavolo o sul foglio del Master; TableLAN gli dà una mano (iniziativa, bestiario, log dei tiri), non lo sostituisce.
+- **Non giudica le regole al posto vostro.** Mostra il totale, non "hai colpito". La CD, il successo, la conseguenza: le decide chi gioca. È un aiuto-memoria e un calcolatore di dadi onesto, non un arbitro.
+- **Niente cloud, niente account, niente gioco a distanza.** Vive sulla Wi-Fi di casa, e basta. È il prezzo — e insieme il punto — del "niente iscrizioni, niente internet": funziona in cantina come in salotto, ma i giocatori devono essere nella stessa stanza (o quasi).
+- **Un tavolo alla volta.** Una console del Master, una partita. Non è pensato per tre gruppi in parallelo.
+
+Se cerchi Roll20 o Foundry, TableLAN non è quello — e va bene. Se cerchi *la scheda giusta sul telefono giusto, senza cerimonie, per il gioco che ti pare*, sei nel posto giusto.
 ---
 ---
 
@@ -195,12 +409,13 @@ il costo di una feature è solo un dato.
 ```
 ┌─────────────────────────── PC del Master ───────────────────────────┐
 │  TableLAN.exe — un solo processo                                    │
-│  ├─ finestra nativa (Photino.NET) su http://127.0.0.1:PORT/admin/   │
+│  ├─ finestra nativa (Photino.NET) su http://127.0.0.1:PORT/master   │
 │  └─ server ASP.NET Core / Kestrel, in-process                       │
-│  ├─ /admin, /api/admin/*   → SOLO loopback (LoopbackOnlyMiddleware) │
-│  │                           QR, join-info; console (4 pagine);      │
-│  │                           bestiario, iniziativa, log dei tiri     │
-│  ├─ /            → client Angular dei giocatori (statico)           │
+│  ├─ /            → una sola app Angular: giocatori e console Master │
+│  │                 (rotta /master). L'UI è generica; il muro sono   │
+│  │                 le API qui sotto.                                 │
+│  ├─ /api/admin/* → SOLO loopback (LoopbackOnlyMiddleware): QR,       │
+│  │                 join-info, bestiario, iniziativa, profilo, import │
 │  ├─ /hub         → SignalR: canale di sola ricezione (server→client)│
 │  ├─ /api/state   → snapshot collassato (senza testi esplicativi)    │
 │  ├─ /api/descriptions/{id} → testi lazy-loaded on-demand            │
@@ -227,8 +442,8 @@ Le idee portanti, in breve:
   sistema (senza azioni bonus, con mana/ki, con cicli "a scena") è cambiare il profilo,
   non il codice. Il costo di una feature è un id-stringa, non un enum. Il Master lo
   modifica da una **GUI a form** nella console (menù "Parti da un preset": D&D 5e,
-  Pathfinder 2e, Call of Cthulhu, Vampiri, Savage Worlds, Fate); il JSON è un dettaglio
-  interno, visibile solo dietro il toggle "JSON avanzato".
+  Daggerheart, Pathfinder 2e, Call of Cthulhu, Vampiri, Savage Worlds, Fate); il JSON è
+  un dettaglio interno, visibile solo dietro il toggle "JSON avanzato".
 - **Entità Fonte** (Capitolo 7): il personaggio è una lista di Fonti attive (classe,
   sottoclasse, razza, oggetto, homebrew…). Il multiclasse non ha codice dedicato: è solo
   il caso in cui il filtro sulle Fonti di tipo "classe" restituisce più di un elemento.
@@ -250,16 +465,19 @@ Le idee portanti, in breve:
   entrano nel tiro senza codice dedicato: se un oggetto equipaggiato dà `Forza +2`,
   `@Forza` vale già 2 in più. Vantaggio/svantaggio sono un'opzione del tiro, non due
   formule diverse — il dado scartato resta visibile.
-- **Confine di rete, non di UI** (Capitoli 5 e 11): le rotte `/admin` del Master
-  rispondono solo su 127.0.0.1; un telefono in LAN riceve 403 a prescindere dall'UI.
+- **Confine di rete, non di UI** (Capitoli 5 e 11): master e giocatori sono la
+  stessa app Angular, e l'interfaccia del Master (`/master`) è servita in modo
+  generico. A rispondere solo su 127.0.0.1 sono le **API** `/api/admin/*`: un
+  telefono in LAN può caricare la console, ma senza quelle API resta vuota — il
+  muro è di rete, non di pagina.
 
 ## Struttura della repo
 
 | Percorso | Contenuto |
 |---|---|
 | `src/TableLAN.Core` | Dominio e rule engine, C# puro senza dipendenze |
-| `src/TableLAN.Server` | L'app del Master (`TableLAN.exe`): finestra Photino.NET + server Kestrel in-process — SignalR, SQLite (EF Core), QR, API, dashboard `/admin` |
-| `clients/player` | Client Angular mobile-first dei giocatori (due rotte: scheda e editor) |
+| `src/TableLAN.Server` | L'app del Master (`TableLAN.exe`): finestra Photino.NET + server Kestrel in-process — SignalR, SQLite (EF Core), QR, API. Le API `/api/admin/*` rispondono solo su loopback |
+| `clients/player` | L'app Angular (Bootstrap): scheda del giocatore su `/:playerGuid`, editor, e la console del Master su `/master` — una sola build |
 | `tests/TableLAN.Core.Tests` | Test xUnit del motore (validazione, economia del turno, Fonti, dadi) |
 | `tests/TableLAN.Server.Tests` | Test xUnit del server (evoluzione dello schema SQLite) |
 | `scripts/build-client.sh` | Compila il client Angular e lo pubblica nella `wwwroot` del server |
@@ -292,7 +510,7 @@ dotnet run --project src/TableLAN.Server -- --headless
 ```
 
 - Giocatori: scansionano il QR → `http://<ip-lan>:5000/`
-- Master: la finestra nativa (o `http://127.0.0.1:5000/admin/` da browser)
+- Master: la finestra nativa (o `http://127.0.0.1:5000/master` da browser)
 
 La build del client è **incrementale** (rigira solo se cambiano i sorgenti del client)
 e **disattivabile** con `dotnet build -p:SkipClientBuild=true` per una build .NET veloce
@@ -368,7 +586,7 @@ app" e nel dock spunta una seconda icona anonima.
 
 ### La campagna: perché è un file solo
 
-Come si usa sta [sopra](#la-campagna-è-un-file). Qui il perché: con `TABLELAN_DB` si
+Come si usa sta [sopra](#le-campagne-sono-file). Qui il perché: con `TABLELAN_DB` si
 punta a un percorso qualsiasi.
 
 Ed è **un file solo davvero**, anche col server acceso: all'avvio la base dati viene
@@ -378,10 +596,18 @@ recenti nel `-wal` — copiando il solo `.db` si otterrebbe un backup a cui manc
 ora di gioco, senza un avviso. Il prezzo (uno scrittore blocca i lettori) a un tavolo da
 quattro persone non lo misura nessuno; la promessa qui sopra vale di più.
 
+L'unica cosa che TableLAN scrive fuori dal `.db` è il segnalibro `.tablelan-campagna`:
+non sono dati di gioco, è solo il nome dell'ultima campagna aperta, per riaprirla al
+prossimo avvio (`CampaignService` lo scrive allo switch, `ResolveDbPath` lo rilegge —
+sotto `TABLELAN_DB`, che se impostata vince). Cancellarlo non perde niente: si riparte
+da `tablelan.db`.
+
 Il single-file vale **solo in pubblicazione**: `dotnet build` e F5 restano a file
 sciolti, come serve mentre si sviluppa. In sviluppo, inoltre, se accanto all'eseguibile
-c'è una `wwwroot` vera quella ha la precedenza sulle risorse incorporate: si modifica
-la console del Master e basta ricaricare la finestra, senza ricompilare.
+c'è una `wwwroot` vera quella ha la precedenza sulle risorse incorporate: il build del
+client la ripopola, così una ricompilazione del client si riflette nella finestra senza
+ricostruire l'exe. Per il ciclo rapido sull'UI (master e giocatori) c'è comunque
+`npm start` col dev server, più sotto.
 
 Al primo avvio il database viene creato e popolato con i due personaggi dei casi d'uso
 target (Capitolo 3): un multiclasse Ladro/Monaco e un'incantatrice pura con slot e una
@@ -406,8 +632,9 @@ fonte, upcasting, doppia Azione nello stesso turno respinta, feature "una volta 
 turno" che si ricarica a ogni nuovo turno, contatori d'uso e cicli di riposo, il
 multiclasse come puro filtro sulle Fonti, la deduplicazione del testo condiviso, gli
 effetti che modificano davvero i valori della scheda, le formule di dado (parsing,
-statistiche risolte prima del tiro, vantaggio/svantaggio) e l'evoluzione dello schema
-SQLite su un database già esistente.
+statistiche risolte prima del tiro, vantaggio/svantaggio, dadi esplosivi, «tieni i
+migliori/peggiori N», pool a successi, la coppia Duality), il vassoio e gli stati di
+ogni preset e l'evoluzione dello schema SQLite su un database già esistente.
 
 Il progetto dei test del server imposta `SkipClientBuild=true`: `dotnet test` non deve
 tirarsi dietro una build npm.
@@ -437,20 +664,43 @@ Extra oltre la roadmap:
 - **Tiri di dado** — una feature può portare una formula che referenzia le statistiche
   della scheda; il giocatore tira dalla scheda, con vantaggio/svantaggio. L'esito è un
   evento realtime (`rollMade`) e finisce nel **log dei tiri** della console del Master,
-  che lo segue via SSE. Il log vive **solo in memoria** (ring buffer di 50): è il
-  brusio del tavolo, non un dato della campagna — a fine sessione non serve più.
+  che lo segue via SSE. Ogni riga del log ha un **ri-tira** (↻): stessa formula, sotto
+  lo stesso nome — un tiro del Master torna dal Master, quello di un giocatore si
+  rilancia come suo. Il log vive **solo in memoria** (ring buffer di 50): è il brusio
+  del tavolo, non un dato della campagna — a fine sessione non serve più.
+- **Vassoio dei dadi** — i tiri rapidi «sul tavolo», fuori da ogni feature: un bottone
+  per dado (con vantaggio/svantaggio), più un campo per la formula libera che nessun
+  bottone copre. **Quali dadi ci sono lo dice il sistema** — è una lista nel profilo
+  (`GameProfile.Dice`), configurabile dalla Sistema come statistiche e riserve, uguale
+  per tutti i giocatori e diversa da gioco a gioco (il d100 di Call of Cthulhu, i dadi
+  di Tratto di Savage Worlds, la coppia Duality di Daggerheart); vuota, il client ricade
+  sui poliedrici standard. La formula libera capisce più di quanto un bottone lasci
+  vedere — dadi **esplosivi** (`1d8!`, l'Ace di Savage), **«tieni i migliori/peggiori
+  N»** (`4d6kh3`, la generazione delle caratteristiche di D&D), pool a successi
+  (`@Destrezza d10 >= 6`), la coppia Duality — e un **`?`** accanto a «Tira» ne mostra
+  esempi tappabili, così non restano poteri invisibili. Il giocatore tira dalla linguetta
+  Tavolo, sotto il suo nome e con le sue statistiche (`1d20+@Forza` vale anche qui); il
+  Master dalla console (`POST /api/admin/roll`, loopback), sotto il nome «Master».
+  Stesso motore, stesso log, stesso `rollMade`: cambia solo chi ci mette il nome.
 - **Bestiario del Master** — una lista di mostri (PF, CA, blocco statistico) con traccia
-  PF facoltativa. Vive solo su loopback: i giocatori non lo vedono, coerente con il
-  fatto che il Master traccia il combattimento per conto suo.
+  PF facoltativa. Un mostro si **sdoppia in istanze** con un tocco (⧉): tre goblin, tre
+  barre di PF separate, senza rinominarli a mano. Vive solo su loopback: i giocatori non
+  lo vedono, coerente con il fatto che il Master traccia il combattimento per conto suo.
 - **Tracker d'iniziativa** — una lista sola, **due punti d'ingresso**: i giocatori dal
   tavolo, le bestie dal bestiario. Vengono da posti diversi e si aggiungono in momenti
   diversi, ma nel giro sono mescolati, perché è lì che il combattimento li mescola.
   Ognuno porta il suo numero e **l'ordine lo decide il server**: "chi ha tirato più alto
   va prima" è una regola, non un'opinione del client, e due console aperte non possono
   mostrare due ordini diversi. Chi entra in turno si ricarica le risorse — ma solo i PG,
-  perché i mostri una scheda nel motore non ce l'hanno. Niente round e niente entità
-  aggregate: quelli restano sul foglio del Master. Come il bestiario, è opzionale e solo
-  loopback.
+  perché i mostri una scheda nel motore non ce l'hanno. Un **contatore di round** avanza
+  da sé quando il giro torna al primo, e su ogni voce si possono appuntare **stati** —
+  dal vocabolario del sistema (Avvelenato, Scosso, Vulnerabile…) o scritti a mano, con
+  un conto alla rovescia di round che cala da solo. Restano aiuti opzionali e solo
+  loopback: il grosso del combattimento resta gestibile sul foglio del Master.
+- **PF temporanei** — un cuscinetto anti-danno sopra i PF (l'*Aiuto* di D&D, i PF
+  temporanei di mille altri sistemi): il danno lo consuma prima di intaccare i PF veri,
+  la cura non lo tocca. Il giocatore se li imposta dal pannello PF; al tavolo del Master
+  compaiono come `+N` accanto alla scheda.
 
 > **Nota sul riorientamento**: lo strumento non è un VTT. Il canale realtime resta di
 > sola ricezione: ogni mutazione entra via REST ed esce via broadcast, l'hub non ha

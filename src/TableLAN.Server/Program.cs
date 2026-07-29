@@ -4,8 +4,9 @@ using TableLAN.Server.Services;
 
 /// <summary>
 /// Eseguibile unico del Master (Capitolo 5): avvia il server LAN in-process e
-/// apre la finestra nativa sulla console di amministrazione, raggiungibile solo
-/// via loopback. Con --headless resta un server da terminale, senza finestra.
+/// apre la finestra nativa sulla console del Master (la stessa app Angular dei
+/// giocatori, sulla rotta /master). Con --headless resta un server da
+/// terminale, senza finestra. Le API /api/admin restano solo loopback.
 /// </summary>
 internal static class Program
 {
@@ -40,7 +41,7 @@ internal static class Program
             var qr = app.Services.GetRequiredService<QrCodeService>();
             Console.WriteLine();
             Console.WriteLine($"  TableLAN {BuildInfo.Version} avviato. I giocatori si uniscono su: {playerUrl}");
-            Console.WriteLine($"  Dashboard Master (solo questo PC): http://127.0.0.1:{port}/admin/");
+            Console.WriteLine($"  Console Master (solo questo PC): http://127.0.0.1:{port}/master");
             Console.WriteLine();
             Console.WriteLine(qr.GenerateAscii(playerUrl));
             app.Run();
@@ -62,7 +63,7 @@ internal static class Program
         if (WindowIcon.EstraiPercorso() is string icona)
             window.SetIconFile(icona);
 
-        window.Load($"http://127.0.0.1:{port}/admin/");
+        window.Load($"http://127.0.0.1:{port}/master");
 
         window.WaitForClose();
 

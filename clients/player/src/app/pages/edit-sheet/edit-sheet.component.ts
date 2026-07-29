@@ -1,4 +1,4 @@
-import { Component, OnInit, effect, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, effect, inject, signal, computed } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -11,8 +11,8 @@ import { FeatureEditorComponent } from '../../components/feature-editor/feature-
   selector: 'app-edit-sheet',
   standalone: true,
   imports: [CommonModule, FormsModule, FeatureEditorComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './edit-sheet.component.html',
-  styleUrl: './edit-sheet.component.scss'
 })
 export class EditSheetComponent implements OnInit {
   private route = inject(ActivatedRoute);

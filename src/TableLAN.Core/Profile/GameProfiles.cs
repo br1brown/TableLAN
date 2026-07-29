@@ -12,6 +12,7 @@ public static class GameProfiles
     public static IReadOnlyList<GameProfile> Presets() =>
     [
         Dnd5e(),
+        Daggerheart(),
         Pathfinder2e(),
         CallOfCthulhu(),
         WorldOfDarkness(),
@@ -23,6 +24,15 @@ public static class GameProfiles
     {
         Id = "dnd5e",
         Name = "D&D 5e",
+        // Oltre ai poliedrici, il tiro-caratteristica per esteso: 4d6, si scarta
+        // il più basso. È la «kh» del motore in un bottone, e la build più iconica
+        // di D&D vive nel vassoio invece che nella memoria del Master.
+        Dice = [.. Poliedrici(), new() { Label = "Caratteristica", Formula = "4d6kh3" }],
+        Conditions = [
+            "Avvelenato", "Prono", "Afferrato", "Trattenuto", "Stordito", "Spaventato",
+            "Accecato", "Assordato", "Affascinato", "Incapacitato", "Paralizzato",
+            "Privo di sensi", "Concentrazione", "Sfinimento",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione" },
@@ -79,11 +89,73 @@ public static class GameProfiles
         ],
     };
 
+    /// <summary>
+    /// Daggerheart: il gioco dei <em>Duality Dice</em>. È il preset che dà un
+    /// senso al motore Duality — due d12, Speranza e Paura, e conta quale dei due
+    /// è più alto. Qui i Tratti si tirano proprio su quella coppia
+    /// (<c>duality: 2d12 + @Tratto</c>), e le riserve non sono slot ma Speranza e
+    /// Stress, i due contatori attorno a cui gira la fiction.
+    ///
+    /// Il valore di un Tratto <em>è</em> il modificatore (va da −1 a +2 circa),
+    /// non si ricalcola come in D&amp;D: nessun <see cref="StatDef.Modifier"/>, si
+    /// somma il punteggio così com'è. L'Evasione è una difesa che si guarda, non
+    /// si tira.
+    /// </summary>
+    public static GameProfile Daggerheart() => new()
+    {
+        Id = "daggerheart",
+        Name = "Daggerheart",
+        // Il cuore è la coppia Duality, pronta nel vassoio; sotto i dadi di danno.
+        Dice = [new() { Label = "Dualità", Formula = "duality: 2d12" }, D(4), D(6), D(8), D(10), D(12), D(20)],
+        // Gli stati di Daggerheart sono pochi e situazionali.
+        Conditions = ["Vulnerabile", "Nascosto", "Trattenuto", "Fuori combattimento"],
+        // L'economia è guidata dalla fiction (il «riflettore»), non da un conteggio
+        // rigido: una sola Azione come impalcatura, che il Master usa o ignora.
+        TurnResources =
+        [
+            new TurnResource { Id = "Action", Label = "Azione" },
+        ],
+        Pools =
+        [
+            // Speranza: si guadagna giocando e si spende; resta fra le scene, quindi
+            // il ciclo che la azzera è quello lungo della Sessione.
+            new ResourcePoolDef { Id = "Hope", Label = "Speranza", Kind = PoolKind.Points, RechargeCycle = "Sessione" },
+            // Stress: si segna sotto pressione e si scarica col riposo.
+            new ResourcePoolDef { Id = "Stress", Label = "Stress", Kind = PoolKind.Points, RechargeCycle = "RiposoBreve" },
+        ],
+        Cycles =
+        [
+            new RestCycle { Id = "PerTurn", Label = "A ogni turno", Rank = 1, PerTurn = true },
+            new RestCycle { Id = "RiposoBreve", Label = "Riposo breve", Rank = 2 },
+            new RestCycle { Id = "RiposoLungo", Label = "Riposo lungo", Rank = 3 },
+            new RestCycle { Id = "Sessione", Label = "Sessione", Rank = 4 },
+        ],
+        // I sei Tratti si tirano sulla coppia Duality; il punteggio è il
+        // modificatore. L'Evasione si guarda e basta.
+        Stats =
+        [
+            new StatDef { Id = "agilita", Label = "Agilità", Default = 0, Roll = "duality: 2d12 + @Agilità" },
+            new StatDef { Id = "forza", Label = "Forza", Default = 0, Roll = "duality: 2d12 + @Forza" },
+            new StatDef { Id = "finezza", Label = "Finezza", Default = 0, Roll = "duality: 2d12 + @Finezza" },
+            new StatDef { Id = "istinto", Label = "Istinto", Default = 0, Roll = "duality: 2d12 + @Istinto" },
+            new StatDef { Id = "presenza", Label = "Presenza", Default = 0, Roll = "duality: 2d12 + @Presenza" },
+            new StatDef { Id = "conoscenza", Label = "Conoscenza", Default = 0, Roll = "duality: 2d12 + @Conoscenza" },
+            new StatDef { Id = "evasione", Label = "Evasione", Default = 10 },
+        ],
+    };
+
     /// <summary>Pathfinder 2e: economia a 3 azioni per turno + reazione, slot e punti focus.</summary>
     public static GameProfile Pathfinder2e() => new()
     {
         Id = "pf2e",
         Name = "Pathfinder 2e",
+        Dice = Poliedrici(),
+        // In PF2e molti stati hanno un valore (Goffo 2, Prosciugato 1): il numero
+        // lo si mette nel campo «round/valore» quando si applica lo stato.
+        Conditions = [
+            "Spaventato", "Malato", "Indebolito", "Goffo", "Prosciugato", "Rallentato",
+            "Stordito", "Prono", "Afferrato", "Colto alla sprovvista", "Morente", "Ferito",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione", PerTurn = 3 },
@@ -126,6 +198,14 @@ public static class GameProfiles
     {
         Id = "coc",
         Name = "Call of Cthulhu",
+        // Il sistema tira percentuale: il d100 apre il vassoio, e i d10 servono
+        // a comporlo a mano (decine e unità) o per il danno.
+        Dice = [D(100), D(10), D(6), D(4), D(8)],
+        // Qui gli «stati» sono soprattutto mentali: la Sanità che si sgretola.
+        Conditions = [
+            "Pazzia temporanea", "Pazzia indefinita", "Attacco di follia",
+            "Ferita grave", "Morente", "Privo di sensi",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione" },
@@ -154,6 +234,14 @@ public static class GameProfiles
     {
         Id = "wod",
         Name = "Vampiri / Mondo di Tenebra",
+        // Tutto è a d10. La «Prova» è un esempio di riserva a successi (facce da
+        // 6 in su): il Master ne cambia il numero di dadi, o tira il pool di una
+        // statistica dalla scheda.
+        Dice = [D(10), new() { Label = "Prova (5 dadi)", Formula = "5d10 >= 6" }, D(6), D(4)],
+        // La Bestia che preme: gli stati del Mondo di Tenebra sono suoi.
+        Conditions = [
+            "Frenesia", "Rötschreck", "Torpore", "Impazzito", "Impaurito", "In caccia",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione" },
@@ -202,6 +290,12 @@ public static class GameProfiles
     {
         Id = "savage",
         Name = "Savage Worlds",
+        // I dadi di Tratto vanno dal d4 al d12 (il d20 e il d100 quasi mai), e
+        // «esplodono»: un massimo si ri-tira e si somma (l'Ace). Il '!' lo dice.
+        Dice = [Dx(4), Dx(6), Dx(8), Dx(10), Dx(12)],
+        Conditions = [
+            "Scosso", "Stordito", "Distratto", "Vulnerabile", "Impigliato", "Legato", "Affaticato",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione" },
@@ -224,6 +318,15 @@ public static class GameProfiles
     {
         Id = "fate",
         Name = "Fate",
+        // Fate tira i dadi Fudge: quattro dadi da −1/0/+1, sommati (4dF). Il motore
+        // ora li conosce, e il vassoio porta il tiro pronto in testa; il d6 resta
+        // per gli spezzoni. Il totale va da −4 a +4, a cui si aggiunge l'abilità.
+        Dice = [new() { Label = "4dF", Formula = "4dF" }, D(6)],
+        // In Fate gli «stati» sono le conseguenze e le condizioni: aspetti che
+        // ti si attaccano addosso, con o senza durata.
+        Conditions = [
+            "Conseguenza lieve", "Conseguenza moderata", "Conseguenza grave", "In difficoltà",
+        ],
         TurnResources =
         [
             new TurnResource { Id = "Action", Label = "Azione" },
@@ -238,4 +341,14 @@ public static class GameProfiles
             new RestCycle { Id = "Sessione", Label = "Sessione", Rank = 2 },
         ],
     };
+
+    /// <summary>Un dado singolo del vassoio: etichetta «dN», formula «1dN».</summary>
+    private static DiePreset D(int sides) => new() { Label = $"d{sides}", Formula = $"1d{sides}" };
+
+    /// <summary>Un dado esplosivo: etichetta «dN», formula «1dN!» (l'Ace di Savage Worlds).</summary>
+    private static DiePreset Dx(int sides) => new() { Label = $"d{sides}", Formula = $"1d{sides}!" };
+
+    /// <summary>Il set poliedrico standard, l'arredo comune di quasi ogni tavolo.</summary>
+    private static List<DiePreset> Poliedrici() =>
+        [D(4), D(6), D(8), D(10), D(12), D(20), D(100)];
 }

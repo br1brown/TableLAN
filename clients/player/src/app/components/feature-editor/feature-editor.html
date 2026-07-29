@@ -1,115 +1,113 @@
-<article class="fe" [class.open]="open()">
+<article class="card">
 
   <!-- Chiusa, la riga è solo un nome e cosa costa: la lista resta leggibile
        anche con quaranta capacità. Si apre quella che vuoi cambiare. -->
-  <header class="fe-head" (click)="toggleOpen()">
-    <strong class="fe-name">{{ feature().shortName }}</strong>
+  <header class="card-header d-flex align-items-center gap-2" role="button" (click)="toggleOpen()">
+    <strong class="flex-grow-1">{{ feature().shortName }}</strong>
     @if (costsLabel()) {
-      <span class="fe-costs">{{ costsLabel() }}</span>
+      <span class="small text-secondary">{{ costsLabel() }}</span>
     }
-    <span class="fe-chevron">{{ open() ? '▴' : '⋯' }}</span>
+    <span class="text-secondary">{{ open() ? '▴' : '⋯' }}</span>
   </header>
 
   @if (open()) {
-    <div class="fe-body">
+    <div class="card-body d-flex flex-column gap-3">
 
-      <label class="fe-field">
-        <span>Nome</span>
-        <input [ngModel]="draft().shortName" (ngModelChange)="set('shortName', $event)" name="nome">
-      </label>
+      <div>
+        <label class="form-label small mb-1">Nome</label>
+        <input class="form-control form-control-sm" [ngModel]="draft().shortName" (ngModelChange)="set('shortName', $event)" name="nome">
+      </div>
 
-      <!-- I costi: quanti ne vuoi. Una magia ne ha due — l'Azione e lo slot —
-           ed è il motivo per cui è una lista e non un campo solo. -->
-      <div class="fe-field">
-        <span>Costo</span>
+      <!-- I costi: quanti ne vuoi. Una magia ne ha due — l'Azione e lo slot. -->
+      <div>
+        <label class="form-label small mb-1">Costo</label>
         @for (c of draft().costs; track $index) {
-          <div class="fe-row">
-            <select [ngModel]="c.kind" (ngModelChange)="setCost($index, { kind: $event })" [name]="'costo' + $index">
+          <div class="input-group input-group-sm mb-1">
+            <select class="form-select" [ngModel]="c.kind" (ngModelChange)="setCost($index, { kind: $event })" [name]="'costo' + $index">
               @for (o of costOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
               }
             </select>
-            <input class="fe-num" type="number" min="0" max="9"
+            <input class="form-control flex-grow-0 w-auto" type="number" min="0" max="9"
                    [ngModel]="c.amount" (ngModelChange)="setCost($index, { amount: +$event })" [name]="'quanti' + $index">
-            <button class="fe-del" type="button" (click)="removeCost($index)" aria-label="Togli il costo">✕</button>
+            <button class="btn btn-outline-secondary" type="button" (click)="removeCost($index)" aria-label="Togli il costo">✕</button>
           </div>
         } @empty {
-          <p class="fe-hint">Nessun costo: è passiva, o si fa senza consumare il turno.</p>
+          <p class="text-secondary small mb-1">Nessun costo: è passiva, o si fa senza consumare il turno.</p>
         }
-        <button class="fe-add" type="button" (click)="addCost()">+ costo</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="addCost()">+ costo</button>
       </div>
 
-      <!-- Usi e ricarica viaggiano insieme: cariche che non tornano mai non
-           sono cariche, e una ricarica senza usi non ricarica niente. -->
-      <div class="fe-row">
-        <label class="fe-field fe-grow">
-          <span>Usi</span>
-          <input class="fe-num" type="number" min="0" placeholder="—"
+      <!-- Usi e ricarica viaggiano insieme. -->
+      <div class="row g-2">
+        <div class="col">
+          <label class="form-label small mb-1">Usi</label>
+          <input class="form-control form-control-sm" type="number" min="0" placeholder="—"
                  [ngModel]="draft().maxUses" (ngModelChange)="setUses($event)" name="usi">
-        </label>
+        </div>
         @if (draft().maxUses !== null) {
-          <label class="fe-field fe-grow">
-            <span>Si ricarica</span>
-            <select [ngModel]="draft().recharge" (ngModelChange)="set('recharge', $event)" name="ricarica">
+          <div class="col">
+            <label class="form-label small mb-1">Si ricarica</label>
+            <select class="form-select form-select-sm" [ngModel]="draft().recharge" (ngModelChange)="set('recharge', $event)" name="ricarica">
               @for (cy of cycles(); track cy.id) {
                 <option [value]="cy.id">{{ cy.label }}</option>
               }
             </select>
-          </label>
+          </div>
         }
       </div>
 
-      <label class="fe-field">
-        <span>Tiro</span>
-        <input placeholder="es. 1d20+@Forza, 3d6"
+      <div>
+        <label class="form-label small mb-1">Tiro</label>
+        <input class="form-control form-control-sm" placeholder="es. 1d20+@Forza, 3d6"
                [ngModel]="draft().roll" (ngModelChange)="set('roll', $event)" name="tiro">
-        <small class="fe-hint">
+        <small class="text-secondary">
           <code>&#64;Nome</code> prende dalla scheda. Le caratteristiche danno il
           <strong>modificatore</strong>: Forza 18 vale +4.
         </small>
-      </label>
+      </div>
 
       <!-- Gli effetti modificano davvero i valori della scheda finché è attiva. -->
-      <div class="fe-field">
-        <span>Effetti</span>
+      <div>
+        <label class="form-label small mb-1">Effetti</label>
         @for (e of draft().effects; track $index) {
-          <div class="fe-row">
-            <select [ngModel]="e.target" (ngModelChange)="setEffect($index, { target: $event })" [name]="'bersaglio' + $index">
+          <div class="input-group input-group-sm mb-1">
+            <select class="form-select" [ngModel]="e.target" (ngModelChange)="setEffect($index, { target: $event })" [name]="'bersaglio' + $index">
               @for (t of effectTargets(); track t) {
                 <option [value]="t">{{ t }}</option>
               }
             </select>
-            <select [ngModel]="e.op" (ngModelChange)="setEffect($index, { op: $event })" [name]="'op' + $index">
+            <select class="form-select" [ngModel]="e.op" (ngModelChange)="setEffect($index, { op: $event })" [name]="'op' + $index">
               <option value="Add">somma (+)</option>
               <option value="Set">imposta (=)</option>
             </select>
-            <input class="fe-num" type="number"
+            <input class="form-control flex-grow-0 w-auto" type="number"
                    [ngModel]="e.value" (ngModelChange)="setEffect($index, { value: +$event })" [name]="'valore' + $index">
-            <button class="fe-del" type="button" (click)="removeEffect($index)" aria-label="Togli l'effetto">✕</button>
+            <button class="btn btn-outline-secondary" type="button" (click)="removeEffect($index)" aria-label="Togli l'effetto">✕</button>
           </div>
         } @empty {
-          <p class="fe-hint">Nessun effetto: non cambia i valori della scheda.</p>
+          <p class="text-secondary small mb-1">Nessun effetto: non cambia i valori della scheda.</p>
         }
-        <button class="fe-add" type="button" (click)="addEffect()">+ effetto</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="addEffect()">+ effetto</button>
       </div>
 
       @if (draft().effects.length) {
-        <label class="fe-check">
-          <input type="checkbox" [ngModel]="draft().toggleable"
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" [id]="'wear-' + feature().id" [ngModel]="draft().toggleable"
                  (ngModelChange)="set('toggleable', $event)" name="indossabile">
-          <span>Si indossa e si toglie — gli effetti valgono solo da acceso</span>
-        </label>
+          <label class="form-check-label small" [attr.for]="'wear-' + feature().id">Si indossa e si toglie — gli effetti valgono solo da acceso</label>
+        </div>
       }
 
-      <label class="fe-field">
-        <span>Descrizione</span>
-        <textarea rows="4" [ngModel]="draft().description"
+      <div>
+        <label class="form-label small mb-1">Descrizione</label>
+        <textarea class="form-control form-control-sm" rows="4" [ngModel]="draft().description"
                   (ngModelChange)="set('description', $event)" name="testo"></textarea>
-      </label>
+      </div>
 
-      <div class="fe-actions">
-        <button class="fe-save" type="button" (click)="submit()">Salva</button>
-        <button class="fe-remove" type="button" (click)="remove.emit()">Elimina</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="button" (click)="submit()">Salva</button>
+        <button class="btn btn-outline-danger" type="button" (click)="remove.emit()">Elimina</button>
       </div>
     </div>
   }
